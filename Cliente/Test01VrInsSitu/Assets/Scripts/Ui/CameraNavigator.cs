@@ -71,16 +71,33 @@ public class CameraNavigator : MonoBehaviour
 
     private void Update()
     {
-        if (isLoggedIn)
+        if (Input.GetKeyDown(KeyCode.RightArrow))
         {
-            if (Input.GetKeyDown(KeyCode.RightArrow))
+            if (isLoggedIn)
             {
                 NavigateToNextPanel();
             }
-            else if (Input.GetKeyDown(KeyCode.LeftArrow))
+            else
+            {
+                Debug.Log("Debes iniciar sesión primero.");
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.LeftArrow))
+        {
+            if (isLoggedIn)
             {
                 NavigateToPreviousPanel();
             }
+            else
+            {
+                Debug.Log("Debes iniciar sesión primero.");
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            Debug.Log("Panel actual: " + currentPanelIndex);
         }
     }
 }
