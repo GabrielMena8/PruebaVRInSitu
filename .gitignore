@@ -1,0 +1,23 @@
+# Archivos de Visual Studio
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Archivos de Unity
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Assets/Plugins/
+
+# Archivos de sistema
+Thumbs.db
+.DS_Store
+
+# Archivos de dependencias de C# (si usas NuGet)
+/packages/
+

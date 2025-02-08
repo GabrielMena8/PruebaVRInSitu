@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "InsituChatApp/1.0.0": {
+        "dependencies": {
+          "websocket-sharp": "1.0.2.21585"
+        },
+        "runtime": {
+          "InsituChatApp.dll": {}
+        }
+      },
+      "websocket-sharp/1.0.2.21585": {
+        "runtime": {
+          "websocket-sharp.dll": {
+            "assemblyVersion": "1.0.2.21585",
+            "fileVersion": "1.0.2.21585"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "InsituChatApp/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "websocket-sharp/1.0.2.21585": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
