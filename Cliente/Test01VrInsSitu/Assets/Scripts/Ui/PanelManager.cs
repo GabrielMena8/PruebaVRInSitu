@@ -133,6 +133,7 @@ public class PanelManager : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(roomName))
         {
+            Debug.Log($"Creando sala: {roomName}");
             ChatClient.Instance.CreateRoom(roomName);
         }
         ConfigureFrontPanel();  // Volver al estado normal del panel
@@ -248,12 +249,10 @@ public class PanelManager : MonoBehaviour
         {
             Debug.Log("Actualizando roomListText");
             roomListText.text = "Salas disponibles:\n" + roomList;
-            roomListText.gameObject.SetActive(false);  // Forzar refresco
-            roomListText.gameObject.SetActive(true);   // Reactivar para asegurar visibilidad
         }
         else
         {
-            Debug.LogError("roomListText es null. No se pudo actualizar la lista.");
+            roomListText = AddTextToPanel(frontPanel, "Salas disponibles:\n" + roomList);
         }
     }
 
@@ -318,6 +317,10 @@ public class PanelManager : MonoBehaviour
         {
             roomListText.text = "Usuarios conectados:\n" + userList;
         }
+        else
+        {
+            roomListText = AddTextToPanel(rightPanel, "Usuarios conectados:\n" + userList);
+        }
     }
 
     /// <summary>
@@ -345,6 +348,10 @@ public class PanelManager : MonoBehaviour
         if (roomListText != null)
         {
             roomListText.text = "Objetos recibidos:\n" + itemList;
+        }
+        else
+        {
+            roomListText = AddTextToPanel(rightPanel, "Objetos recibidos:\n" + itemList);
         }
     }
 

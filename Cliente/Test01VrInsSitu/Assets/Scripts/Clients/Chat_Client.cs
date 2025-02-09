@@ -47,6 +47,9 @@ public class ChatClient : MonoBehaviour
         // Suscribirse a los eventos de autenticación
         AuthManager.Instance.OnLoginSuccess += HandleLoginSuccess;
         AuthManager.Instance.OnLoginError += HandleLoginError;
+
+        // Inicializar WebSocket
+        InitializeWebSocket();
     }
 
     /// <summary>
@@ -85,6 +88,35 @@ public class ChatClient : MonoBehaviour
     #region WebSocket Methods
 
     /// <summary>
+    /// Inicializar el WebSocket.
+    /// </summary>
+    private void InitializeWebSocket()
+    {
+        ws = new WebSocket("ws://127.0.0.1:8080/chat");
+
+        ws.OnOpen += (sender, e) =>
+        {
+            Debug.Log("Conexión WebSocket establecida.");
+        };
+
+        ws.OnMessage += OnMessageReceived;
+
+        ws.OnClose += (sender, e) =>
+        {
+            Debug.Log("Conexión WebSocket cerrada.");
+            reconnectStartTime = Time.time;
+        };
+
+        ws.OnError += (sender, e) =>
+        {
+            Debug.LogError($"Error en la conexión WebSocket: {e.Message}");
+            reconnectStartTime = Time.time;
+        };
+
+        ws.ConnectAsync();
+    }
+
+    /// <summary>
     /// Intentar iniciar sesión con el nombre de usuario y la contraseña proporcionados.
     /// </summary>
     /// <param name="username">Nombre de usuario</param>
@@ -108,7 +140,6 @@ public class ChatClient : MonoBehaviour
         });
     }
 
-
     /// <summary>
     /// Manejar el error del inicio de sesión.
     /// </summary>
@@ -127,35 +158,7 @@ public class ChatClient : MonoBehaviour
     private void ReconnectWebSocket()
     {
         Debug.Log("Intentando reconectar...");
-        ws = new WebSocket("ws://127.0.0.1:8080/chat");
-        ConnectWebSocketForReconnect();
-    }
-
-    /// <summary>
-    /// Conectar el WebSocket para la reconexión.
-    /// </summary>
-    private void ConnectWebSocketForReconnect()
-    {
-        ws.OnOpen += (sender, e) =>
-        {
-            Debug.Log("Reconexión establecida.");
-        };
-
-        ws.OnMessage += OnMessageReceived;
-
-        ws.OnClose += (sender, e) =>
-        {
-            Debug.Log("Conexión cerrada nuevamente. Intentando reconectar...");
-            reconnectStartTime = Time.time;
-        };
-
-        ws.OnError += (sender, e) =>
-        {
-            Debug.LogError($"Error en la reconexión: {e.Message}");
-            reconnectStartTime = Time.time;
-        };
-
-        ws.ConnectAsync();
+        InitializeWebSocket();
     }
 
     /// <summary>
@@ -214,9 +217,20 @@ public class ChatClient : MonoBehaviour
     /// <param name="roomName">Nombre de la sala</param>
     public void CreateRoom(string roomName)
     {
+        Debug.Log("Intentando crear sala: " + roomName);
+        if (ws != null)
+        {
+            Debug.Log("Estado del WebSocket: " + ws.ReadyState);
+        }
+
         if (ws != null && ws.ReadyState == WebSocketState.Open)
         {
+            Debug.Log("Enviando comando CREATE_ROOM al servidor");
             ws.Send($"CREATE_ROOM {roomName}");
+        }
+        else
+        {
+            Debug.LogError("No se puede crear la sala. El WebSocket no está conectado.");
         }
     }
 
@@ -268,5 +282,4 @@ public class ChatClient : MonoBehaviour
     }
 
     #endregion
-
-    }
+}

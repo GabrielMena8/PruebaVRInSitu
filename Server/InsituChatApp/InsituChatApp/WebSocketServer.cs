@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Timers;
 using WebSocketSharp;
@@ -17,6 +18,10 @@ public class ChatRoom : WebSocketBehavior
     private static List<ChatRoomData> chatRooms = new List<ChatRoomData>();
     private static Dictionary<string, User> connectedUsers = new Dictionary<string, User>();
     private static System.Timers.Timer? inactivityTimer;
+    private static Stopwatch serverUptime = Stopwatch.StartNew();
+    private static int totalMessagesSent = 0;
+    private static int totalMessagesReceived = 0;
+    private static List<long> latencies = new List<long>();
 
     private string userName;
     private string roomName;
@@ -31,6 +36,7 @@ public class ChatRoom : WebSocketBehavior
 
     protected override void OnMessage(MessageEventArgs e)
     {
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             string[] messageParts = e.Data.Split(' ');
@@ -74,6 +80,9 @@ public class ChatRoom : WebSocketBehavior
                     case "HELP":
                         HandleHelp();
                         break;
+                    case "STATS":
+                        HandleStats();
+                        break;
                     default:
                         Send("Comando no reconocido. Escribe 'HELP' para ver la lista de comandos disponibles.");
                         break;
@@ -82,8 +91,39 @@ public class ChatRoom : WebSocketBehavior
         }
         catch (Exception ex)
         {
+            LogError(ex);
             Send($"ERROR {ex.Message}");
         }
+        finally
+        {
+            stopwatch.Stop();
+            latencies.Add(stopwatch.ElapsedMilliseconds);
+            totalMessagesReceived++;
+        }
+    }
+
+    protected override void OnClose(CloseEventArgs e)
+    {
+        if (connectedUsers.ContainsKey(userName))
+        {
+            connectedUsers.Remove(userName);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{userName} se ha desconectado.");
+            Console.ResetColor();
+        }
+    }
+
+    protected override void OnError(WebSocketSharp.ErrorEventArgs e)
+    {
+        LogError(new Exception(e.Message));
+    }
+
+    private void LogError(Exception ex)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"[ERROR] {DateTime.Now}: {ex.Message}");
+        Console.WriteLine(ex.StackTrace);
+        Console.ResetColor();
     }
 
     // Manejo del Login
@@ -102,7 +142,9 @@ public class ChatRoom : WebSocketBehavior
         {
             string role = user == "admin" ? "admin" : "user";
             connectedUsers[user] = new User(user, role);
+            Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"{user} se ha registrado como {role}.");
+            Console.ResetColor();
         }
 
         userName = user;
@@ -116,7 +158,9 @@ public class ChatRoom : WebSocketBehavior
         if (connectedUsers.ContainsKey(userName))
         {
             connectedUsers.Remove(userName);
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"{userName} se ha desconectado.");
+            Console.ResetColor();
             Send("LOGOUT_SUCCESS");
         }
         else
@@ -228,7 +272,9 @@ public class ChatRoom : WebSocketBehavior
         if (connectedUsers.ContainsKey(userToDelete))
         {
             connectedUsers.Remove(userToDelete);
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"{userToDelete} ha sido eliminado.");
+            Console.ResetColor();
             Send($"USER_DELETED {userToDelete}");
         }
         else
@@ -281,7 +327,9 @@ public class ChatRoom : WebSocketBehavior
     {
         connectedUsers[userName].Status = UserStatus.Typing;
         connectedUsers[userName].LastActivity = DateTime.Now;
+        Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"{userName} está escribiendo...");
+        Console.ResetColor();
     }
 
     // Manejar mensaje normal
@@ -289,7 +337,10 @@ public class ChatRoom : WebSocketBehavior
     {
         connectedUsers[userName].Status = UserStatus.Active;
         connectedUsers[userName].LastActivity = DateTime.Now;
+        Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine($"[{userName}] {message}");
+        Console.ResetColor();
+        totalMessagesSent++;
     }
 
     // Iniciar el Timer para verificar la inactividad
@@ -299,7 +350,9 @@ public class ChatRoom : WebSocketBehavior
         inactivityTimer.Elapsed += CheckUserInactivity;
         inactivityTimer.AutoReset = true;
         inactivityTimer.Enabled = true;
+        Console.ForegroundColor = ConsoleColor.Magenta;
         Console.WriteLine("Inactivity Timer iniciado.");
+        Console.ResetColor();
     }
 
     // Verificar la inactividad de los usuarios
@@ -312,7 +365,9 @@ public class ChatRoom : WebSocketBehavior
                 if (user.Status != UserStatus.Inactive)
                 {
                     user.Status = UserStatus.Inactive;
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine($"{user.UserName} ahora está Inactivo.");
+                    Console.ResetColor();
                 }
             }
         }
@@ -332,8 +387,21 @@ public class ChatRoom : WebSocketBehavior
                              "VIEW_CONNECTED - Ver usuarios conectados\n" +
                              "TYPING - Indicar que el usuario está escribiendo\n" +
                              "MESSAGE <mensaje> - Enviar un mensaje a la sala\n" +
-                             "HELP - Ver la lista de comandos disponibles";
+                             "HELP - Ver la lista de comandos disponibles\n" +
+                             "STATS - Ver estadísticas del servidor";
         Send(helpMessage);
+    }
+
+    // Manejar el comando STATS
+    private void HandleStats()
+    {
+        double averageLatency = latencies.Count > 0 ? latencies.Average() : 0;
+        string statsMessage = $"Estadísticas del servidor:\n" +
+                              $"Tiempo de actividad: {serverUptime.Elapsed}\n" +
+                              $"Mensajes enviados: {totalMessagesSent}\n" +
+                              $"Mensajes recibidos: {totalMessagesReceived}\n" +
+                              $"Latencia promedio: {averageLatency} ms";
+        Send(statsMessage);
     }
 }
 
@@ -356,14 +424,18 @@ class InsituChatServer
                     if (!wssv.IsListening)
                     {
                         wssv.Start();
+                        Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine("Servidor WebSocket iniciado.");
+                        Console.ResetColor();
                     }
                     break;
                 case "stop":
                     if (wssv.IsListening)
                     {
                         wssv.Stop();
+                        Console.ForegroundColor = ConsoleColor.Red;
                         Console.WriteLine("Servidor detenido.");
+                        Console.ResetColor();
                     }
                     break;
                 case "exit":
@@ -372,10 +444,14 @@ class InsituChatServer
                         wssv.Stop();
                     }
                     running = false;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine("Saliendo...");
+                    Console.ResetColor();
                     break;
                 default:
+                    Console.ForegroundColor = ConsoleColor.DarkRed;
                     Console.WriteLine("Comando no reconocido.");
+                    Console.ResetColor();
                     break;
             }
         }
