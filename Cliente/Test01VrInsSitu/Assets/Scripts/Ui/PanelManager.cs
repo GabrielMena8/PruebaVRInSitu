@@ -13,6 +13,7 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject rightPanel;
 
     private string currentRole = "user";  // Rol actual: "user" o "admin"
+    private TextMeshProUGUI roomListText; // Texto para mostrar la lista de salas
 
     #region Unity Methods
 
@@ -96,19 +97,164 @@ public class PanelManager : MonoBehaviour
         if (currentRole == "admin")
         {
             AddTitleToPanel(frontPanel, "Administrar Salas");
-            AddButtonToPanel(frontPanel, "Crear Sala", () => Debug.Log("Crear Sala"));
-            AddButtonToPanel(frontPanel, "Ver Salas", () => Debug.Log("Ver Salas"));
-            AddButtonToPanel(frontPanel, "Eliminar Sala", () => Debug.Log("Eliminar Sala"));
+            AddButtonToPanel(frontPanel, "Crear Sala", ShowCreateRoomInput);
+            AddButtonToPanel(frontPanel, "Ver Salas", HandleViewRooms);
+            AddButtonToPanel(frontPanel, "Eliminar Sala", ShowDeleteRoomInput);
         }
         else if (currentRole == "user")
         {
             AddTitleToPanel(frontPanel, "Salas Disponibles");
-            AddButtonToPanel(frontPanel, "Ver Salas", () => Debug.Log("Ver Salas Disponibles"));
-            AddButtonToPanel(frontPanel, "Unirse a Sala", () => Debug.Log("Unirse a Sala"));
-            AddButtonToPanel(frontPanel, "Enviar Mensaje", () => Debug.Log("Enviar Mensaje"));
+            AddButtonToPanel(frontPanel, "Ver Salas", HandleViewRooms);
+            AddButtonToPanel(frontPanel, "Unirse a Sala", ShowJoinRoomInput);
+            AddButtonToPanel(frontPanel, "Enviar Mensaje", ShowSendMessageInput);
         }
 
         frontPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Muestra el campo de entrada para el nombre de la sala y un botón "Aceptar".
+    /// </summary>
+    private void ShowCreateRoomInput()
+    {
+        ClearPanel(frontPanel);
+        AddTitleToPanel(frontPanel, "Crear Nueva Sala");
+
+        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
+        AddButtonToPanel(frontPanel, "Aceptar", () => HandleCreateRoom(roomNameInput.text));
+        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+    }
+
+    /// <summary>
+    /// Maneja la creación de la sala y vuelve al estado normal del panel.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala</param>
+    private void HandleCreateRoom(string roomName)
+    {
+        if (!string.IsNullOrEmpty(roomName))
+        {
+            ChatClient.Instance.CreateRoom(roomName);
+        }
+        ConfigureFrontPanel();  // Volver al estado normal del panel
+    }
+
+    /// <summary>
+    /// Muestra el campo de entrada para eliminar una sala y un botón "Aceptar".
+    /// </summary>
+    private void ShowDeleteRoomInput()
+    {
+        ClearPanel(frontPanel);
+        AddTitleToPanel(frontPanel, "Eliminar Sala");
+
+        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
+        AddButtonToPanel(frontPanel, "Aceptar", () => HandleDeleteRoom(roomNameInput.text));
+        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+    }
+
+    /// <summary>
+    /// Maneja la eliminación de la sala y vuelve al estado normal del panel.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala</param>
+    private void HandleDeleteRoom(string roomName)
+    {
+        if (!string.IsNullOrEmpty(roomName))
+        {
+            ChatClient.Instance.DeleteRoom(roomName);
+        }
+        ConfigureFrontPanel();  // Volver al estado normal del panel
+    }
+
+    /// <summary>
+    /// Muestra el campo de entrada para unirse a una sala y un botón "Aceptar".
+    /// </summary>
+    private void ShowJoinRoomInput()
+    {
+        ClearPanel(frontPanel);
+        AddTitleToPanel(frontPanel, "Unirse a Sala");
+
+        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
+        AddButtonToPanel(frontPanel, "Aceptar", () => HandleJoinRoom(roomNameInput.text));
+        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+    }
+
+    /// <summary>
+    /// Maneja la unión a la sala y vuelve al estado normal del panel.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala</param>
+    private void HandleJoinRoom(string roomName)
+    {
+        if (!string.IsNullOrEmpty(roomName))
+        {
+            // Aquí puedes manejar la lógica para unirse a la sala
+            Debug.Log($"Unido a la sala: {roomName}");
+        }
+        ConfigureFrontPanel();  // Volver al estado normal del panel
+    }
+
+    /// <summary>
+    /// Muestra el campo de entrada para enviar un mensaje y un botón "Aceptar".
+    /// </summary>
+    private void ShowSendMessageInput()
+    {
+        ClearPanel(frontPanel);
+        AddTitleToPanel(frontPanel, "Enviar Mensaje");
+
+        TMP_InputField messageInput = AddInputFieldToPanel(frontPanel, "Mensaje");
+        AddButtonToPanel(frontPanel, "Aceptar", () => HandleSendMessage(messageInput.text));
+        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+    }
+
+    /// <summary>
+    /// Maneja el envío del mensaje y vuelve al estado normal del panel.
+    /// </summary>
+    /// <param name="message">Mensaje a enviar</param>
+    private void HandleSendMessage(string message)
+    {
+        if (!string.IsNullOrEmpty(message))
+        {
+            // Aquí puedes manejar la lógica para enviar el mensaje
+            Debug.Log($"Mensaje enviado: {message}");
+        }
+        ConfigureFrontPanel();  // Volver al estado normal del panel
+    }
+
+    /// <summary>
+    /// Maneja la visualización de las salas y muestra un botón "Volver".
+    /// </summary>
+    private void HandleViewRooms()
+    {
+        Debug.Log("Iniciando HandleViewRooms");
+        ClearPanel(frontPanel);
+        AddTitleToPanel(frontPanel, "Salas Disponibles");
+
+        roomListText = AddTextToPanel(frontPanel, "Cargando salas...");
+        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+
+        // Solicitar la lista de salas al servidor
+        Debug.Log("Llamando a ChatClient.Instance.ViewRooms()");
+        ChatClient.Instance.ViewRooms();
+
+        Debug.Log("Viendo salas");
+    }
+
+    /// <summary>
+    /// Muestra la lista de salas en el panel frontal.
+    /// </summary>
+    /// <param name="roomList">Lista de salas</param>
+    public void ShowRoomList(string roomList)
+    {
+        Debug.Log("ShowRoomList llamado");
+        if (roomListText != null)
+        {
+            Debug.Log("Actualizando roomListText");
+            roomListText.text = "Salas disponibles:\n" + roomList;
+            roomListText.gameObject.SetActive(false);  // Forzar refresco
+            roomListText.gameObject.SetActive(true);   // Reactivar para asegurar visibilidad
+        }
+        else
+        {
+            Debug.LogError("roomListText es null. No se pudo actualizar la lista.");
+        }
     }
 
     /// <summary>
@@ -134,16 +280,72 @@ public class PanelManager : MonoBehaviour
         if (currentRole == "admin")
         {
             AddTitleToPanel(rightPanel, "Opciones de Admin");
-            AddButtonToPanel(rightPanel, "Ver Conectados", () => Debug.Log("Ver Usuarios Conectados"));
+            AddButtonToPanel(rightPanel, "Ver Conectados", HandleViewConnectedUsers);
             AddButtonToPanel(rightPanel, "Cerrar Servidor", () => Debug.Log("Cerrar Servidor"));
         }
         else if (currentRole == "user")
         {
             AddTitleToPanel(rightPanel, "Objetos Recibidos");
-            AddButtonToPanel(rightPanel, "Ver Objetos", () => Debug.Log("Lista de objetos recibidos"));
+            AddButtonToPanel(rightPanel, "Ver Objetos", HandleViewReceivedItems);
         }
 
         rightPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Maneja la visualización de los usuarios conectados y muestra un botón "Volver".
+    /// </summary>
+    private void HandleViewConnectedUsers()
+    {
+        ClearPanel(rightPanel);
+        AddTitleToPanel(rightPanel, "Usuarios Conectados");
+
+        roomListText = AddTextToPanel(rightPanel, "Cargando usuarios...");
+        AddButtonToPanel(rightPanel, "Volver", ConfigureRightPanel);
+
+        // Solicitar la lista de usuarios conectados al servidor
+        ChatClient.Instance.ViewConnectedUsers();
+    }
+
+    /// <summary>
+    /// Muestra la lista de usuarios conectados en el panel derecho.
+    /// </summary>
+    /// <param name="userList">Lista de usuarios conectados</param>
+    public void ShowConnectedUsers(string userList)
+    {
+        Debug.Log($"Actualizando la lista de usuarios conectados en el panel: {userList}");
+        if (roomListText != null)
+        {
+            roomListText.text = "Usuarios conectados:\n" + userList;
+        }
+    }
+
+    /// <summary>
+    /// Maneja la visualización de los objetos recibidos y muestra un botón "Volver".
+    /// </summary>
+    private void HandleViewReceivedItems()
+    {
+        ClearPanel(rightPanel);
+        AddTitleToPanel(rightPanel, "Objetos Recibidos");
+
+        roomListText = AddTextToPanel(rightPanel, "Cargando objetos...");
+        AddButtonToPanel(rightPanel, "Volver", ConfigureRightPanel);
+
+        // Aquí puedes manejar la lógica para mostrar los objetos recibidos
+        // Por ejemplo, puedes llamar a un método en ChatClient para obtener la lista de objetos
+        // ChatClient.Instance.ViewReceivedItems();
+    }
+
+    /// <summary>
+    /// Muestra la lista de objetos recibidos en el panel derecho.
+    /// </summary>
+    /// <param name="itemList">Lista de objetos recibidos</param>
+    public void ShowReceivedItems(string itemList)
+    {
+        if (roomListText != null)
+        {
+            roomListText.text = "Objetos recibidos:\n" + itemList;
+        }
     }
 
     /// <summary>
@@ -249,6 +451,23 @@ public class PanelManager : MonoBehaviour
         inputFieldObject.transform.SetParent(panel.transform, false);
 
         return inputField;
+    }
+
+    /// <summary>
+    /// Añade un texto a un panel.
+    /// </summary>
+    /// <param name="panel">El panel donde añadir el texto.</param>
+    /// <param name="textContent">El contenido del texto.</param>
+    private TextMeshProUGUI AddTextToPanel(GameObject panel, string textContent)
+    {
+        GameObject textObject = new GameObject("Text");
+        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
+        text.text = textContent;
+        text.fontSize = 18;
+        text.alignment = TextAlignmentOptions.Center;
+        text.transform.SetParent(panel.transform, false);
+
+        return text;
     }
 
     #endregion

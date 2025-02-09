@@ -13,6 +13,9 @@ public class ChatClient : MonoBehaviour
     private float reconnectDelay = 5f;
     private float reconnectStartTime;
 
+    // Singleton Instance
+    public static ChatClient Instance;
+
     // Nueva cola para manejar acciones en el hilo principal
     private Queue<Action> mainThreadActions = new Queue<Action>();
 
@@ -27,6 +30,18 @@ public class ChatClient : MonoBehaviour
     /// <summary>
     /// Método de Unity llamado al iniciar el script.
     /// </summary>
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
     private void Start()
     {
         // Suscribirse a los eventos de autenticación
@@ -85,10 +100,14 @@ public class ChatClient : MonoBehaviour
     /// <param name="role">Rol del usuario</param>
     private void HandleLoginSuccess(string role)
     {
-        loginManager.loginPanel.SetActive(false);
-        dynamicPanelManager.SetRole(role);
-        cameraNavigator.SetLoggedIn(true);
+        mainThreadActions.Enqueue(() =>
+        {
+            loginManager.loginPanel.SetActive(false);
+            dynamicPanelManager.SetRole(role);
+            cameraNavigator.SetLoggedIn(true);
+        });
     }
+
 
     /// <summary>
     /// Manejar el error del inicio de sesión.
@@ -96,7 +115,10 @@ public class ChatClient : MonoBehaviour
     /// <param name="error">Mensaje de error</param>
     private void HandleLoginError(string error)
     {
-        Debug.Log("Error de inicio de sesión: " + error);
+        mainThreadActions.Enqueue(() =>
+        {
+            Debug.Log("Error de inicio de sesión: " + error);
+        });
     }
 
     /// <summary>
@@ -161,6 +183,18 @@ public class ChatClient : MonoBehaviour
                 Debug.Log("Error de inicio de sesión: " + e.Data);
                 AuthManager.Instance.InvokeOnLoginError(e.Data);
             }
+            else if (e.Data.StartsWith("ROOMS_INFO"))
+            {
+                string roomList = e.Data.Substring("ROOMS_INFO:".Length).Trim();
+                Debug.Log($"Lista de salas: {roomList}");
+                PanelManager.Instance.ShowRoomList(roomList);
+            }
+            else if (e.Data.StartsWith("CONNECTED_USERS"))
+            {
+                string userList = e.Data.Substring("CONNECTED_USERS:".Length).Trim();
+                Debug.Log($"Lista de usuarios conectados: {userList}");
+                PanelManager.Instance.ShowConnectedUsers(userList);
+            }
             else if (e.Data.StartsWith("MESSAGE"))
             {
                 string receivedMessage = e.Data.Substring(8);
@@ -171,4 +205,68 @@ public class ChatClient : MonoBehaviour
     }
 
     #endregion
-}
+
+    #region Admin Commands
+
+    /// <summary>
+    /// Crear una nueva sala.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala</param>
+    public void CreateRoom(string roomName)
+    {
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send($"CREATE_ROOM {roomName}");
+        }
+    }
+
+    /// <summary>
+    /// Eliminar una sala existente.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala</param>
+    public void DeleteRoom(string roomName)
+    {
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send($"DELETE_ROOM {roomName}");
+        }
+    }
+
+    /// <summary>
+    /// Eliminar un usuario.
+    /// </summary>
+    /// <param name="username">Nombre del usuario</param>
+    public void DeleteUser(string username)
+    {
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send($"DELETE_USER {username}");
+        }
+    }
+
+    /// <summary>
+    /// Ver todas las salas disponibles.
+    /// </summary>
+    public void ViewRooms()
+    {
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            Debug.Log("Desde CC Rooms");
+            ws.Send("VIEW_ROOMS");
+        }
+    }
+
+    /// <summary>
+    /// Ver usuarios conectados.
+    /// </summary>
+    public void ViewConnectedUsers()
+    {
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send("VIEW_CONNECTED");
+        }
+    }
+
+    #endregion
+
+    }
