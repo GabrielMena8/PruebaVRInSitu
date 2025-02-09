@@ -36,6 +36,13 @@ public class ChatRoom : WebSocketBehavior
 
     protected override void OnMessage(MessageEventArgs e)
     {
+        // Si el comando no es LOGIN y el usuario aún no se ha autenticado, se rechaza el comando.
+        if (!e.Data.ToUpper().StartsWith("LOGIN") && string.IsNullOrEmpty(userName))
+        {
+            Send("ERROR Debes iniciar sesión antes de enviar comandos.");
+            return;
+        }
+
         var stopwatch = Stopwatch.StartNew();
         try
         {
@@ -295,7 +302,7 @@ public class ChatRoom : WebSocketBehavior
         string roomInfo = "";
         foreach (var room in chatRooms)
         {
-            string usersInRoom = string.Join(", ", room.ConnectedUsers.Select(u => u.UserName));
+            string usersInRoom = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
             roomInfo += $"Sala: {room.RoomName} - Usuarios: {usersInRoom}\n";
         }
 

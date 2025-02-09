@@ -121,7 +121,12 @@ public class PanelManager : MonoBehaviour
         AddTitleToPanel(frontPanel, "Crear Nueva Sala");
 
         TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
-        AddButtonToPanel(frontPanel, "Aceptar", () => HandleCreateRoom(roomNameInput.text));
+        AddButtonToPanel(frontPanel, "Aceptar", () =>
+        {
+            string roomName = roomNameInput.text;
+            Debug.Log($"Nombre de la sala ingresado: {roomName}");
+            HandleCreateRoom(roomName);
+        });
         AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
     }
 
@@ -133,8 +138,12 @@ public class PanelManager : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(roomName))
         {
-            Debug.Log($"Creando sala: {roomName}");
+            Debug.Log($"Creando sala con nombre: {roomName}");
             ChatClient.Instance.CreateRoom(roomName);
+        }
+        else
+        {
+            Debug.LogError("El nombre de la sala es nulo o vacío.");
         }
         ConfigureFrontPanel();  // Volver al estado normal del panel
     }
