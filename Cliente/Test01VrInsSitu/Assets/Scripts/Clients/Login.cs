@@ -6,6 +6,8 @@ using TMPro;
 /// </summary>
 public class Login : MonoBehaviour
 {
+    public static Login Instance;
+
     // Referencias a los componentes de la UI
     [Header("Referencias a los componentes de la UI")]
     public TMP_InputField usernameInput;
@@ -18,6 +20,18 @@ public class Login : MonoBehaviour
     /// <summary>
     /// Método de Unity llamado al iniciar el script.
     /// </summary>
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
     private void Start()
     {
         // Suscribirse a los eventos de autenticación
