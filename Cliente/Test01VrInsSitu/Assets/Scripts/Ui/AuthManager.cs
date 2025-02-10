@@ -142,12 +142,22 @@ public class AuthManager : MonoBehaviour
                     {
                         PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.yellow);
                     }
+
+                }
+
+                if (receivedMessage.Contains("ha sido eliminada"))
+                {
+                    // Mostrar el mensaje en el chat y regresar a la pantalla principal
+                    PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
+                    PanelManager.Instance.ShowMainMenu();  // Método para volver al menú principal
+                    PanelManager.Instance.CloseChatPanel();
                 }
                 else
                 {
-                    // Mensaje normal
                     PanelManager.Instance.AppendChatMessage(receivedMessage);
                 }
+
+
             }
 
             // NUEVO: Manejo de la notificación de "escribiendo"

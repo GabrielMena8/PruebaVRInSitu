@@ -467,6 +467,22 @@
         // Mostrar el chatPanel
         chatPanel.SetActive(true);
     }
+    public void CloseChatPanel()
+    {
+        GameObject chatPanel = GameObject.Find("ChatPanel");
+        if (chatPanel != null)
+        {
+            Destroy(chatPanel);  // Destruye el panel de chat para evitar que quede activo
+        }
+    }
+
+    public void ShowMainMenu()
+    {
+        ClearPanel(frontPanel);
+        ConfigureFrontPanel();  // Configura nuevamente el panel frontal para mostrar el menú principal
+        Debug.Log("Regresando al menú principal después de la eliminación de la sala.");
+    }
+
 
 
     public void AppendSystemMessage(string message, Color messageColor)

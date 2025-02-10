@@ -227,7 +227,6 @@ public class ChatRoom : WebSocketBehavior
         }
     }
 
-    // Eliminar Sala
     private void HandleDeleteRoom(string[] messageParts)
     {
         if (connectedUsers[userName].Role != "admin")
@@ -247,14 +246,29 @@ public class ChatRoom : WebSocketBehavior
 
         if (room != null)
         {
+            // Notificar a todos los usuarios de la sala que será eliminada
+            foreach (ChatRoom client in clients)
+            {
+                if (client.roomName == room.RoomName)
+                {
+                    client.Send($"MESSAGE [Sistema]: La sala '{room.RoomName}' ha sido eliminada.");
+                    client.roomName = null;  // Eliminar la referencia a la sala para este cliente
+                }
+            }
+
+            // Eliminar a todos los usuarios de la sala
+            room.ConnectedUsers.Clear();
+
+            // Eliminar la sala de la lista global de salas
             chatRooms.Remove(room);
-            Send($"ROOM_DELETED {roomToDelete}");
+            Console.WriteLine($"La sala '{room.RoomName}' ha sido eliminada.");
         }
         else
         {
             Send("ERROR La sala no existe.");
         }
     }
+
 
     // Unirse a una Sala
     private void HandleJoinRoom(string[] messageParts)
