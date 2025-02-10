@@ -111,6 +111,32 @@ public class AuthManager : MonoBehaviour
                 Debug.Log("Connected Users Info received: " + userList);
                 PanelManager.Instance.ShowConnectedUsers(userList);
             }
+
+            else if (e.Data.StartsWith("JOINED_ROOM"))
+            {
+                // Extraer el nombre de la sala de la respuesta del servidor
+                string joinedRoom = e.Data.Substring("JOINED_ROOM".Length).Trim();
+                Debug.Log("Se ha unido a la sala: " + joinedRoom);
+
+                // Aquí se llama a ShowChatPanel para mostrar el panel de chat
+                PanelManager.Instance.ShowChatPanel(joinedRoom);
+            }
+
+            else if (e.Data.StartsWith("MESSAGE"))
+            {
+                string receivedMessage = e.Data.Substring("MESSAGE ".Length);
+                Debug.Log("Mensaje de chat: " + receivedMessage);
+                PanelManager.Instance.AppendChatMessage(receivedMessage);
+            }
+            // NUEVO: Manejo de la notificación de "escribiendo"
+            else if (e.Data.StartsWith("TYPING"))
+            {
+                // Extraer el nombre del usuario que está escribiendo.
+                string typingUser = e.Data.Substring("TYPING".Length).Trim();
+                Debug.Log($"{typingUser} está escribiendo...");
+                // Llamar a un método en PanelManager para actualizar el indicador.
+                PanelManager.Instance.ShowTypingIndicator(typingUser);
+            }
             else
             {
                 // Otros mensajes, se pueden manejar de la manera que prefieras.

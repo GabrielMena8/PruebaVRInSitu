@@ -23,11 +23,16 @@ public class ChatRoom : WebSocketBehavior
     private static int totalMessagesReceived = 0;
     private static List<long> latencies = new List<long>();
 
+    // NUEVO: Lista de conexiones activas para enviar mensajes (broadcast) a los clientes de la misma sala
+    private static List<ChatRoom> clients = new List<ChatRoom>();
+
     private string userName;
     private string roomName;
 
     protected override void OnOpen()
     {
+        // Agregamos esta conexión a la lista de clientes
+        clients.Add(this);
         if (inactivityTimer == null)
         {
             StartInactivityTimer();  // Iniciar el Timer solo la primera vez
@@ -111,6 +116,9 @@ public class ChatRoom : WebSocketBehavior
 
     protected override void OnClose(CloseEventArgs e)
     {
+        // NUEVO: Removemos esta conexión de la lista de clientes
+        clients.Remove(this);
+
         if (connectedUsers.ContainsKey(userName))
         {
             connectedUsers.Remove(userName);
@@ -257,6 +265,15 @@ public class ChatRoom : WebSocketBehavior
 
         roomName = requestedRoom;
         Send($"JOINED_ROOM {roomName}");
+
+        // NUEVO: Notificar a los otros clientes de la sala que este usuario se ha unido
+        foreach (ChatRoom client in clients)
+        {
+            if (client != this && client.roomName == this.roomName)
+            {
+                client.Send($"SYSTEM: {userName} se ha unido a la sala.");
+            }
+        }
     }
 
     // Eliminar Usuario
@@ -339,43 +356,30 @@ public class ChatRoom : WebSocketBehavior
         Console.ResetColor();
     }
 
-    // Manejar mensaje normal
+    // Manejar mensaje normal y difundirlo a los clientes de la misma sala
+    // Manejar mensaje normal y difundirlo a los clientes de la misma sala
     private void HandleMessage(string message)
     {
+        // Actualiza el estado del usuario a Active y su última actividad
         connectedUsers[userName].Status = UserStatus.Active;
         connectedUsers[userName].LastActivity = DateTime.Now;
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine($"[{userName}] {message}");
         Console.ResetColor();
         totalMessagesSent++;
-    }
 
-    // Iniciar el Timer para verificar la inactividad
-    private void StartInactivityTimer()
-    {
-        inactivityTimer = new System.Timers.Timer(10000);  // Verificar cada 10 segundos
-        inactivityTimer.Elapsed += CheckUserInactivity;
-        inactivityTimer.AutoReset = true;
-        inactivityTimer.Enabled = true;
-        Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.WriteLine("Inactivity Timer iniciado.");
-        Console.ResetColor();
-    }
+        // Extrae el contenido del mensaje (quitando el prefijo "MESSAGE ")
+        string content = message.Length > "MESSAGE ".Length ? message.Substring("MESSAGE ".Length) : "";
 
-    // Verificar la inactividad de los usuarios
-    private void CheckUserInactivity(object source, ElapsedEventArgs e)
-    {
-        foreach (var user in connectedUsers.Values)
+        // Formatea el mensaje para incluir el nombre del usuario y su estado
+        string formattedMessage = $"[{userName} ({connectedUsers[userName].Status})] {content}";
+
+        // Difunde (broadcast) el mensaje a todas las conexiones que pertenezcan a la misma sala
+        foreach (ChatRoom client in clients)
         {
-            if (user.IsInactive(5))  // 5 minutos de inactividad
+            if (client.roomName == this.roomName)
             {
-                if (user.Status != UserStatus.Inactive)
-                {
-                    user.Status = UserStatus.Inactive;
-                    Console.ForegroundColor = ConsoleColor.DarkYellow;
-                    Console.WriteLine($"{user.UserName} ahora está Inactivo.");
-                    Console.ResetColor();
-                }
+                client.Send("MESSAGE " + formattedMessage);
             }
         }
     }
@@ -410,6 +414,40 @@ public class ChatRoom : WebSocketBehavior
                               $"Latencia promedio: {averageLatency} ms";
         Send(statsMessage);
     }
+
+    // Iniciar el Timer para verificar la inactividad
+    private void StartInactivityTimer()
+    {
+        inactivityTimer = new System.Timers.Timer(10000);  // Verificar cada 10 segundos
+        inactivityTimer.Elapsed += CheckUserInactivity;
+        inactivityTimer.AutoReset = true;
+        inactivityTimer.Enabled = true;
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine("Inactivity Timer iniciado.");
+        Console.ResetColor();
+    }
+
+    // Verificar la inactividad de los usuarios
+    private void CheckUserInactivity(object source, ElapsedEventArgs e)
+    {
+        foreach (var user in connectedUsers.Values)
+        {
+            if (user.IsInactive(5))  // 5 minutos de inactividad
+            {
+                if (user.Status != UserStatus.Inactive)
+                {
+                    user.Status = UserStatus.Inactive;
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine($"{user.UserName} ahora está Inactivo.");
+                    Console.ResetColor();
+                }
+            }
+        }
+    }
+
+    // Manejar el comando HELP (ya implementado arriba)
+
+    // Manejar el comando STATS (ya implementado arriba)
 }
 
 class InsituChatServer
@@ -464,3 +502,4 @@ class InsituChatServer
         }
     }
 }
+    
