@@ -349,21 +349,47 @@
         // Añadir título al panel de chat
         UIUtilities.CreateTitle(chatPanel.transform, "Chat - Sala: " + roomName);
 
-        // Crear un ScrollView para el historial del chat
-        GameObject scrollViewObject = new GameObject("ScrollView", typeof(RectTransform));
+        // Crear un ScrollView para el historial del chat con componentes necesarios:
+        // RectTransform, ScrollRect, Image y Mask
+        GameObject scrollViewObject = new GameObject("ScrollView",
+            typeof(RectTransform), typeof(ScrollRect), typeof(Image), typeof(Mask));
         scrollViewObject.transform.SetParent(chatPanel.transform, false);
         RectTransform scrollRectTransform = scrollViewObject.GetComponent<RectTransform>();
+        // Establecer anclajes para ubicar el ScrollView (estos valores son un ejemplo)
         scrollRectTransform.anchorMin = new Vector2(0.05f, 0.3f);
         scrollRectTransform.anchorMax = new Vector2(0.95f, 0.85f);
         scrollRectTransform.offsetMin = Vector2.zero;
         scrollRectTransform.offsetMax = Vector2.zero;
+        // Definir explícitamente width y height (puedes ajustar estos valores según tus necesidades)
+        scrollRectTransform.sizeDelta = new Vector2(400, 100);
 
-        ScrollRect scrollRect = scrollViewObject.AddComponent<ScrollRect>();
+        // Configurar el componente ScrollRect
+        ScrollRect scrollRect = scrollViewObject.GetComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
-        Image scrollViewImage = scrollViewObject.AddComponent<Image>();
-        scrollViewImage.color = new Color(1, 1, 1, 0.5f);
 
+        // Configurar la imagen de fondo y la máscara para ocultar el contenido desbordado
+        Image scrollViewImage = scrollViewObject.GetComponent<Image>();
+        scrollViewImage.color = new Color(1, 1, 1, 0.5f);
+        Mask mask = scrollViewObject.GetComponent<Mask>();
+        mask.showMaskGraphic = false;
+
+     /*   // Crear y asignar un Scrollbar vertical al ScrollView
+        GameObject verticalScrollbar = new GameObject("VerticalScrollbar",
+            typeof(RectTransform), typeof(Scrollbar), typeof(Image));
+        verticalScrollbar.transform.SetParent(scrollViewObject.transform, false);
+        RectTransform scrollbarRect = verticalScrollbar.GetComponent<RectTransform>();
+        // Ubicar el scrollbar en el lado derecho del ScrollView
+        scrollbarRect.anchorMin = new Vector2(1, 0);
+        scrollbarRect.anchorMax = new Vector2(1, 1);
+        scrollbarRect.pivot = new Vector2(1, 0.5f);
+        scrollbarRect.sizeDelta = new Vector2(20, 0); // Ancho de 20; la altura se ajusta automáticamente
+        Image scrollbarImage = verticalScrollbar.GetComponent<Image>();
+        scrollbarImage.color = Color.gray;
+        /*Scrollbar verticalScrollbarComponent = verticalScrollbar.GetComponent<Scrollbar>();
+        // Asignar el scrollbar al ScrollRect
+        scrollRect.verticalScrollbar = verticalScrollbarComponent;
+        */
         // Crear el contenedor (Content) para los mensajes
         GameObject content = new GameObject("Content", typeof(RectTransform));
         content.transform.SetParent(scrollViewObject.transform, false);
@@ -382,7 +408,7 @@
         layoutGroup.childForceExpandHeight = false;
         layoutGroup.spacing = 5;
 
-        // Añadir ContentSizeFitter para que el Content se ajuste al contenido automáticamente
+        // Añadir ContentSizeFitter para que el Content se ajuste automáticamente al contenido
         ContentSizeFitter sizeFitter = content.AddComponent<ContentSizeFitter>();
         sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
@@ -440,6 +466,7 @@
         // Mostrar el chatPanel
         chatPanel.SetActive(true);
     }
+
 
     /// <summary>
     /// Muestra un indicador de que un usuario está escribiendo.
