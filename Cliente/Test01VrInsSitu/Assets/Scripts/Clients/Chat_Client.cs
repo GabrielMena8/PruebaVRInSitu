@@ -13,6 +13,7 @@ public class ChatClient : MonoBehaviour
     public PanelManager dynamicPanelManager;     // Se usa para actualizar el panel principal (menú, chat, etc.)
     public Login loginManager;                   // Referencia al script de Login para ocultar la pantalla de login
 
+    private bool isTyping;
     private void Awake()
     {
         if (Instance == null)
@@ -60,17 +61,20 @@ public class ChatClient : MonoBehaviour
 
     public void SendTypingStatus()
     {
-        WebSocket ws = AuthManager.Instance.WS;
-        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        if (!isTyping)
         {
-            ws.Send("TYPING");
-        }
-        else
-        {
-            Debug.LogError("No se puede enviar estado TYPING. El WebSocket no está conectado.");
+            WebSocket ws = AuthManager.Instance.WS;
+            if (ws != null && ws.ReadyState == WebSocketState.Open)
+            {
+                ws.Send("TYPING");
+                isTyping = true;  // Marca como que ya está escribiendo
+            }
+            else
+            {
+                Debug.LogError("No se puede enviar estado TYPING. El WebSocket no está conectado.");
+            }
         }
     }
-
     #region Métodos para Enviar Comandos
 
     public void CreateRoom(string roomName)
@@ -138,6 +142,15 @@ public class ChatClient : MonoBehaviour
         }
     }
 
+    public void HandleUserDisconnected(string username)
+    {
+        mainThreadActions.Enqueue(() =>
+        {
+            Debug.Log($"{username} se ha desconectado.");
+            PanelManager.Instance.RemoveUserFromUI(username);  // Método para eliminar al usuario de la UI
+        });
+    }
+
     // NUEVO: Método para enviar un mensaje a la sala a la que se ha unido.
     public void SendMessageToRoom(string message)
     {
@@ -146,6 +159,7 @@ public class ChatClient : MonoBehaviour
         if (ws != null && ws.ReadyState == WebSocketState.Open)
         {
             ws.Send($"MESSAGE {message}");
+            isTyping = false;  // Reinicia el estado de escritura
         }
         else
         {

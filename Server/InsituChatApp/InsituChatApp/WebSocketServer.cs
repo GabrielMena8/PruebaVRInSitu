@@ -116,17 +116,33 @@ public class ChatRoom : WebSocketBehavior
 
     protected override void OnClose(CloseEventArgs e)
     {
-        // NUEVO: Removemos esta conexión de la lista de clientes
         clients.Remove(this);
 
         if (connectedUsers.ContainsKey(userName))
         {
+            // Eliminar al usuario de la sala
+            ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+            if (room != null)
+            {
+                room.ConnectedUsers.RemoveAll(u => u.UserName == userName);
+            }
+
+            // Notificar a todos los clientes en la misma sala que el usuario se ha desconectado
+            foreach (ChatRoom client in clients)
+            {
+                if (client.roomName == this.roomName && client != this)
+                {
+                    client.Send($"MESSAGE [Sistema]: {userName} se ha desconectado.");
+                }
+            }
+
+            // Eliminar al usuario de la lista global de usuarios conectados
             connectedUsers.Remove(userName);
-            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"{userName} se ha desconectado.");
-            Console.ResetColor();
         }
     }
+
+
 
     protected override void OnError(WebSocketSharp.ErrorEventArgs e)
     {
@@ -266,15 +282,18 @@ public class ChatRoom : WebSocketBehavior
         roomName = requestedRoom;
         Send($"JOINED_ROOM {roomName}");
 
-        // NUEVO: Notificar a los otros clientes de la sala que este usuario se ha unido
+        // NUEVO: Notificar a todos los clientes en la misma sala que este usuario se ha unido
         foreach (ChatRoom client in clients)
         {
-            if (client != this && client.roomName == this.roomName)
+            if (client.roomName == this.roomName && client != this)
             {
-                client.Send($"SYSTEM: {userName} se ha unido a la sala.");
+                client.Send($"MESSAGE [Sistema]: {userName} se ha unido a la sala.");
             }
         }
+
+        Console.WriteLine($"{userName} se ha unido a la sala {roomName}.");
     }
+
 
     // Eliminar Usuario
     private void HandleDeleteUser(string[] messageParts)
@@ -443,7 +462,6 @@ public class ChatRoom : WebSocketBehavior
         Console.ResetColor();
     }
 
-    // Verificar la inactividad de los usuarios
     private void CheckUserInactivity(object source, ElapsedEventArgs e)
     {
         foreach (var user in connectedUsers.Values)
@@ -453,15 +471,21 @@ public class ChatRoom : WebSocketBehavior
                 if (user.Status != UserStatus.Inactive)
                 {
                     user.Status = UserStatus.Inactive;
-                    Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine($"{user.UserName} ahora está Inactivo.");
-                    Console.ResetColor();
+
+                    // Notificar a todos los clientes en la misma sala
+                    foreach (ChatRoom client in clients)
+                    {
+                        if (client.roomName == this.roomName)
+                        {
+                            client.Send($"MESSAGE [Sistema]: {user.UserName} ahora está inactivo.");
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Manejar el comando HELP (ya implementado arriba)
 
     // Manejar el comando STATS (ya implementado arriba)
 }

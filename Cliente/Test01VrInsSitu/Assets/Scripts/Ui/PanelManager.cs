@@ -1,6 +1,7 @@
     using UnityEngine;
     using TMPro;
     using UnityEngine.UI;
+    using System.Linq;
 
     public class PanelManager : MonoBehaviour
     {
@@ -468,6 +469,31 @@
     }
 
 
+    public void AppendSystemMessage(string message, Color messageColor)
+    {
+        if (chatContent == null)
+        {
+            Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
+            return;
+        }
+
+        GameObject messageObject = new GameObject("SystemMessage", typeof(RectTransform));
+        messageObject.transform.SetParent(chatContent, false);
+
+        TextMeshProUGUI messageText = messageObject.AddComponent<TextMeshProUGUI>();
+        messageText.text = message;
+        messageText.fontSize = 18;
+        messageText.alignment = TextAlignmentOptions.Left;
+        messageText.color = messageColor;  // Color específico para el mensaje
+
+        ContentSizeFitter csf = messageObject.AddComponent<ContentSizeFitter>();
+        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent as RectTransform);
+    }
+
+
     /// <summary>
     /// Muestra un indicador de que un usuario está escribiendo.
     /// </summary>
@@ -627,13 +653,25 @@
             return inputField;
         }
 
-        /// <summary>
-        /// Añade un texto a un panel.
-        /// </summary>
-        /// <param name="panel">El panel donde añadir el texto.</param>
-        /// <param name="textContent">El contenido del texto.</param>
-        /// <param name="fontSize">El tamaño de la fuente (por defecto 18).</param>
-        private TextMeshProUGUI AddTextToPanel(GameObject panel, string textContent, int fontSize = 18)
+    public void RemoveUserFromUI(string username)
+    {
+        Debug.Log($"Eliminando a {username} de la UI.");
+        // Lógica para encontrar y eliminar el usuario de la lista de usuarios conectados en la UI.
+        // Por ejemplo, si estás mostrando los usuarios en un TextMeshProUGUI:
+        if (roomListText != null)
+        {
+            string[] users = roomListText.text.Split('\n');
+            roomListText.text = string.Join("\n", users.Where(user => !user.Contains(username)).ToArray());
+        }
+    }
+
+    /// <summary>
+    /// Añade un texto a un panel.
+    /// </summary>
+    /// <param name="panel">El panel donde añadir el texto.</param>
+    /// <param name="textContent">El contenido del texto.</param>
+    /// <param name="fontSize">El tamaño de la fuente (por defecto 18).</param>
+    private TextMeshProUGUI AddTextToPanel(GameObject panel, string textContent, int fontSize = 18)
         {
             GameObject textObject = new GameObject("Text");
             TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();

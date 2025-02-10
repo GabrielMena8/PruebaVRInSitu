@@ -126,8 +126,30 @@ public class AuthManager : MonoBehaviour
             {
                 string receivedMessage = e.Data.Substring("MESSAGE ".Length);
                 Debug.Log("Mensaje de chat: " + receivedMessage);
-                PanelManager.Instance.AppendChatMessage(receivedMessage);
+
+                if (receivedMessage.Contains("[Sistema]:"))
+                {
+                    // Formatea el mensaje del sistema con colores según el tipo
+                    if (receivedMessage.Contains("se ha unido a la sala"))
+                    {
+                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.green);
+                    }
+                    else if (receivedMessage.Contains("se ha desconectado"))
+                    {
+                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
+                    }
+                    else if (receivedMessage.Contains("ahora está inactivo"))
+                    {
+                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.yellow);
+                    }
+                }
+                else
+                {
+                    // Mensaje normal
+                    PanelManager.Instance.AppendChatMessage(receivedMessage);
+                }
             }
+
             // NUEVO: Manejo de la notificación de "escribiendo"
             else if (e.Data.StartsWith("TYPING"))
             {
@@ -137,6 +159,14 @@ public class AuthManager : MonoBehaviour
                 // Llamar a un método en PanelManager para actualizar el indicador.
                 PanelManager.Instance.ShowTypingIndicator(typingUser);
             }
+
+            else if (e.Data.StartsWith("USER_DISCONNECTED"))
+            {
+                string disconnectedUser = e.Data.Substring("USER_DISCONNECTED".Length).Trim();
+                Debug.Log($"{disconnectedUser} se ha desconectado.");
+                ChatClient.Instance.HandleUserDisconnected(disconnectedUser);
+            }
+
             else
             {
                 // Otros mensajes, se pueden manejar de la manera que prefieras.
