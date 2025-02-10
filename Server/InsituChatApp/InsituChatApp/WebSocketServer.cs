@@ -347,14 +347,28 @@ public class ChatRoom : WebSocketBehavior
     }
 
     // Manejar estado "escribiendo"
+ 
     private void HandleTyping()
     {
+        // Actualiza el estado y la última actividad
         connectedUsers[userName].Status = UserStatus.Typing;
         connectedUsers[userName].LastActivity = DateTime.Now;
+
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"{userName} está escribiendo...");
         Console.ResetColor();
+
+        // NUEVO: Difundir el estado TYPING a los demás clientes en la misma sala
+        foreach (ChatRoom client in clients)
+        {
+            // Enviar a todos los clientes que estén en la misma sala, excepto al que está escribiendo
+            if (client.roomName == this.roomName && client.userName != this.userName)
+            {
+                client.Send("TYPING " + userName);
+            }
+        }
     }
+
 
     // Manejar mensaje normal y difundirlo a los clientes de la misma sala
     // Manejar mensaje normal y difundirlo a los clientes de la misma sala
@@ -383,6 +397,8 @@ public class ChatRoom : WebSocketBehavior
             }
         }
     }
+
+
 
     // Manejar el comando HELP
     private void HandleHelp()

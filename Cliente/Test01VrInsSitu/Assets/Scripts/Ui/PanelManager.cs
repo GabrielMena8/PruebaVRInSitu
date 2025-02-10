@@ -14,9 +14,10 @@
 
         private string currentRole = "user";  // Rol actual: "user" o "admin"
         private TextMeshProUGUI roomListText;   // Texto para mostrar la lista de salas
+    private Transform chatContent;
 
-        // NUEVO: Variable para almacenar la referencia del área de chat (se asigna cuando se crea el panel de chat)
-        private TextMeshProUGUI chatDisplay;
+
+    
 
         #region Unity Methods
 
@@ -318,68 +319,127 @@
             ShowLoginPanel();
         }
 
-        #endregion
+    #endregion
 
-        #region Métodos para el Chat
+    #region Métodos para el Chat
 
-        /// <summary>
-        /// Muestra dinámicamente un panel de chat para la sala a la que se ha unido.
-        /// Este método es llamado desde el ChatClient cuando se recibe la respuesta "JOINED_ROOM".
-        /// </summary>
-        /// <param name="roomName">Nombre de la sala a la que se ha unido</param>
-        /// 
-        public void ShowChatPanel(string roomName)
+    /// <summary>
+    /// Muestra dinámicamente un panel de chat para la sala a la que se ha unido.
+    /// Este método es llamado desde el ChatClient cuando se recibe la respuesta "JOINED_ROOM".
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala a la que se ha unido</param>
+    /// 
+    /// <summary>
+    /// Muestra dinámicamente un panel de chat para la sala a la que se ha unido.
+    /// </summary>
+    /// <param name="roomName">Nombre de la sala a la que se ha unido</param>
+    public void ShowChatPanel(string roomName)
+    {
+        // Ocultar los paneles de menú
+        loginPanel.SetActive(false);
+        frontPanel.SetActive(false);
+        leftPanel.SetActive(false);
+        rightPanel.SetActive(false);
+
+        // Clonar el frontPanel para usarlo como base para el chatPanel (respetando su estilo)
+        GameObject chatPanel = Instantiate(frontPanel, frontPanel.transform.parent);
+        chatPanel.name = "ChatPanel";
+        ClearPanel(chatPanel);
+
+        // Añadir título al panel de chat
+        UIUtilities.CreateTitle(chatPanel.transform, "Chat - Sala: " + roomName);
+
+        // Crear un ScrollView para el historial del chat
+        GameObject scrollViewObject = new GameObject("ScrollView", typeof(RectTransform));
+        scrollViewObject.transform.SetParent(chatPanel.transform, false);
+        RectTransform scrollRectTransform = scrollViewObject.GetComponent<RectTransform>();
+        scrollRectTransform.anchorMin = new Vector2(0.05f, 0.3f);
+        scrollRectTransform.anchorMax = new Vector2(0.95f, 0.85f);
+        scrollRectTransform.offsetMin = Vector2.zero;
+        scrollRectTransform.offsetMax = Vector2.zero;
+
+        ScrollRect scrollRect = scrollViewObject.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        Image scrollViewImage = scrollViewObject.AddComponent<Image>();
+        scrollViewImage.color = new Color(1, 1, 1, 0.5f);
+
+        // Crear el contenedor (Content) para los mensajes
+        GameObject content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(scrollViewObject.transform, false);
+        RectTransform contentRect = content.GetComponent<RectTransform>();
+        // Configurar el Content para que se extienda horizontalmente y se adapte verticalmente
+        contentRect.anchorMin = new Vector2(0, 1);
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1);
+        contentRect.sizeDelta = new Vector2(0, 0);
+
+        // Añadir VerticalLayoutGroup para distribuir los mensajes
+        VerticalLayoutGroup layoutGroup = content.AddComponent<VerticalLayoutGroup>();
+        layoutGroup.childControlWidth = true;
+        layoutGroup.childForceExpandWidth = true;
+        layoutGroup.childControlHeight = true;
+        layoutGroup.childForceExpandHeight = false;
+        layoutGroup.spacing = 5;
+
+        // Añadir ContentSizeFitter para que el Content se ajuste al contenido automáticamente
+        ContentSizeFitter sizeFitter = content.AddComponent<ContentSizeFitter>();
+        sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Asignar el RectTransform del Content al ScrollRect
+        scrollRect.content = contentRect;
+
+        // Almacenar la referencia al contenedor de mensajes para agregar nuevos mensajes
+        chatContent = content.transform;
+
+        // Crear el InputField para escribir mensajes
+        TMP_InputField chatInput = UIUtilities.CreateInputField(chatPanel.transform, "Escribe tu mensaje...");
+        RectTransform inputRect = chatInput.GetComponent<RectTransform>();
+        inputRect.anchorMin = new Vector2(0.05f, 0.05f);
+        inputRect.anchorMax = new Vector2(0.75f, 0.15f);
+        inputRect.offsetMin = Vector2.zero;
+        inputRect.offsetMax = Vector2.zero;
+
+        // Suscribirse al evento onValueChanged para enviar el estado "TYPING"
+        chatInput.onValueChanged.AddListener((text) =>
         {
-            // Ocultar los paneles de menú
-            loginPanel.SetActive(false);
-            frontPanel.SetActive(false);
-            leftPanel.SetActive(false);
-            rightPanel.SetActive(false);
-
-            // Clonar el frontPanel para usarlo como base para el chatPanel
-            GameObject chatPanel = Instantiate(frontPanel, frontPanel.transform.parent);
-            chatPanel.name = "ChatPanel";
-
-            // Limpiar el contenido del chatPanel
-            ClearPanel(chatPanel);
-
-            // Añadir título al panel de chat
-            AddTitleToPanel(chatPanel, "Chat - Sala: " + roomName);
-
-            // Crear un área de texto para el historial del chat y almacenar la referencia en chatDisplay
-            chatDisplay = AddTextToPanel(chatPanel, "", 18);
-
-            // Añadir un campo de entrada para escribir mensajes
-            TMP_InputField chatInput = AddInputFieldToPanel(chatPanel, "Escribe tu mensaje...");
-
-            chatInput.onValueChanged.AddListener((text) => {
-                if (!string.IsNullOrEmpty(text))
-                {
-                    ChatClient.Instance.SendTypingStatus();
-                }
-            });
-
-        // Añadir botón "Enviar" para enviar el mensaje
-        AddButtonToPanel(chatPanel, "Enviar", () =>
+            if (!string.IsNullOrEmpty(text))
             {
-                string msg = chatInput.text;
-                if (!string.IsNullOrEmpty(msg))
-                {
-                    ChatClient.Instance.SendMessageToRoom(msg);
-                    chatInput.text = "";
-                }
-            });
+                ChatClient.Instance.SendTypingStatus();
+            }
+        });
 
-            // Añadir botón "Volver" para regresar al menú principal
-            AddButtonToPanel(chatPanel, "Volver", () =>
+        // Crear el botón "Enviar" y posicionarlo en la parte inferior derecha del panel
+        Button sendButton = UIUtilities.CreateButton(chatPanel.transform, "Enviar", () =>
+        {
+            string msg = chatInput.text;
+            if (!string.IsNullOrEmpty(msg))
             {
-                Destroy(chatPanel);
-                ConfigurePanels(currentRole);
-            });
+                ChatClient.Instance.SendMessageToRoom(msg);
+                chatInput.text = "";
+            }
+        }, new Vector2(200, 50));
+        RectTransform sendRect = sendButton.GetComponent<RectTransform>();
+        sendRect.anchorMin = new Vector2(0.8f, 0.05f);
+        sendRect.anchorMax = new Vector2(0.95f, 0.15f);
+        sendRect.offsetMin = Vector2.zero;
+        sendRect.offsetMax = Vector2.zero;
 
-            // Mostrar el chatPanel
-            chatPanel.SetActive(true);
-        }
+        // Crear el botón "Volver"
+        Button backButton = UIUtilities.CreateButton(chatPanel.transform, "Volver", () =>
+        {
+            Destroy(chatPanel);
+            ConfigurePanels(currentRole);
+        }, new Vector2(200, 50));
+        RectTransform backRect = backButton.GetComponent<RectTransform>();
+        backRect.anchorMin = new Vector2(0.05f, 0.05f);
+        backRect.anchorMax = new Vector2(0.3f, 0.15f);
+        backRect.offsetMin = Vector2.zero;
+        backRect.offsetMax = Vector2.zero;
+
+        // Mostrar el chatPanel
+        chatPanel.SetActive(true);
+    }
 
     /// <summary>
     /// Muestra un indicador de que un usuario está escribiendo.
@@ -387,26 +447,51 @@
     /// <param name="userName">El nombre del usuario que está escribiendo</param>
     public void ShowTypingIndicator(string userName)
     {
-        // Puedes optar por actualizar un elemento UI dedicado o simplemente añadir un mensaje al historial.
+        // Simplemente se añade un mensaje informativo al historial
         AppendChatMessage($"{userName} está escribiendo...");
     }
 
     /// <summary>
     /// Agrega un mensaje al historial del chat.
-    /// Este método es llamado cuando se recibe un mensaje de chat del servidor.
+    /// Cada mensaje se crea como un GameObject hijo del contenedor 'chatContent'
+    /// que ya cuenta con un VerticalLayoutGroup para organizar los mensajes.
     /// </summary>
     /// <param name="message">Mensaje a agregar</param>
     public void AppendChatMessage(string message)
+    {
+        if (chatContent == null)
         {
-            if (chatDisplay != null)
-                chatDisplay.text += message + "\n";
+            Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
+            return;
         }
 
-        /// <summary>
-        /// Muestra la lista de usuarios conectados en el panel derecho.
-        /// </summary>
-        /// <param name="userList">Lista de usuarios conectados</param>
-        public void ShowConnectedUsers(string userList)
+        // Crear un nuevo GameObject para el mensaje
+        GameObject messageObject = new GameObject("Message", typeof(RectTransform));
+        messageObject.transform.SetParent(chatContent, false);
+
+        // Añadir y configurar el componente TextMeshProUGUI para mostrar el mensaje
+        TextMeshProUGUI messageText = messageObject.AddComponent<TextMeshProUGUI>();
+        messageText.text = message;
+        messageText.fontSize = 18;
+        messageText.alignment = TextAlignmentOptions.Left;
+        messageText.textWrappingMode = TextWrappingModes.NoWrap;
+
+        // Agregar un ContentSizeFitter para que la altura se ajuste al contenido del mensaje
+        ContentSizeFitter csf = messageObject.AddComponent<ContentSizeFitter>();
+        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Opcional: forzar la actualización del layout para que se vea inmediatamente
+        LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent as RectTransform);
+    }
+
+
+
+    /// <summary>
+    /// Muestra la lista de usuarios conectados en el panel derecho.
+    /// </summary>
+    /// <param name="userList">Lista de usuarios conectados</param>
+    public void ShowConnectedUsers(string userList)
         {
             Debug.Log($"Actualizando la lista de usuarios conectados en el panel: {userList}");
             if (roomListText != null)

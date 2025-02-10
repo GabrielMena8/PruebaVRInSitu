@@ -64,6 +64,7 @@
     <Compile Include="Assets\Scripts\Ui\AuthManager.cs" />
     <Compile Include="Assets\Scripts\Clients\Chat_Client.cs" />
     <Compile Include="Assets\Scripts\Ui\PanelManager.cs" />
+    <Compile Include="Assets\Scripts\Ui\Uiutilities.cs" />
     <Compile Include="Assets\Scripts\Clients\Login.cs" />
     <Compile Include="Assets\Scripts\Ui\CameraNavigator.cs" />
   </ItemGroup>
