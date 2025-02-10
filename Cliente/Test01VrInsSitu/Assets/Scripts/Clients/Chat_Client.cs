@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using WebSocketSharp;
+using System.Collections;
 
 public class ChatClient : MonoBehaviour
 {
@@ -167,5 +168,136 @@ public class ChatClient : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Envía el objeto (o sus datos) a un usuario específico.
+    /// Se utiliza el comando "SEND_OBJECT" que el servidor procesará para enviar de forma dirigida.
+    /// </summary>
+    /// <param name="targetUser">Usuario destino</param>
+    /// <param name="objectDataJson">Datos del objeto en JSON</param>
+    public void SendObjectToUser(string targetUser, string objectDataJson)
+    {
+        string message = $"SEND_OBJECT {targetUser} {objectDataJson}";
+        WebSocket ws = AuthManager.Instance.WS;
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send(message);
+            Debug.Log("Enviando objeto a " + targetUser + ": " + message);
+        }
+        else
+        {
+            Debug.LogError("No se puede enviar el objeto. El WebSocket no está conectado.");
+        }
+    }
+
     #endregion
+
+
+
+    public void OnObjectClicked(GameObject obj)
+    {
+        if (obj == null)
+        {
+            Debug.LogError("OnObjectClicked: El objeto es nulo.");
+            return;
+        }
+
+        // Obtener los datos del objeto
+        ComplexObjectData data = GetComplexObjectData(obj);
+        if (data == null)
+        {
+            Debug.LogError("OnObjectClicked: Falló al obtener los datos del objeto.");
+            return;
+        }
+
+        // Serializar la información del objeto en un mensaje universal
+        string objectDataJson = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
+
+        // Consultar la lista de usuarios conectados
+        List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
+        if (connectedUsers == null || connectedUsers.Count == 0)
+        {
+            Debug.LogWarning("OnObjectClicked: No hay usuarios conectados. Solicitando actualización...");
+            // Solicitar la actualización de la lista
+            ViewConnectedUsers();
+            // Reintentar el envío después de un breve retraso
+            StartCoroutine(RetryOnObjectClicked(obj, objectDataJson));
+            return;
+        }
+
+        // Si hay usuarios, mostrar el menú contextual
+        PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
+        {
+            SendObjectToUser(selectedUser, objectDataJson);
+        }, Input.mousePosition);
+    }
+
+    /// <summary>
+    /// Coroutine que reintenta la acción de OnObjectClicked después de un breve retraso.
+    /// </summary>
+    private IEnumerator RetryOnObjectClicked(GameObject obj, string objectDataJson)
+    {
+        // Espera 0.5 segundos (ajusta el tiempo según tus necesidades)
+        yield return new WaitForSeconds(0.5f);
+
+        // Vuelve a obtener la lista actualizada de usuarios conectados
+        List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
+        if (connectedUsers != null && connectedUsers.Count > 0)
+        {
+            Debug.Log("RetryOnObjectClicked: Lista actualizada: " + string.Join(", ", connectedUsers));
+            PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
+            {
+                SendObjectToUser(selectedUser, objectDataJson);
+            }, Input.mousePosition);
+        }
+        else
+        {
+            Debug.LogWarning("RetryOnObjectClicked: Todavía no hay usuarios conectados tras el retraso.");
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// Función auxiliar para empaquetar la información de un objeto en un ComplexObjectData.
+    /// </summary>
+    private ComplexObjectData GetComplexObjectData(GameObject obj)
+    {
+        MeshFilter meshFilter = obj.GetComponent<MeshFilter>();
+        Renderer renderer = obj.GetComponent<Renderer>();
+
+        if (meshFilter == null)
+        {
+            Debug.LogError("El objeto no tiene MeshFilter.");
+            return null;
+        }
+
+        ComplexObjectData data = new ComplexObjectData();
+        data.ObjectName = obj.name;
+        data.Position = obj.transform.position;
+        data.Rotation = obj.transform.rotation;
+        data.Scale = obj.transform.localScale;
+
+        Mesh mesh = meshFilter.mesh;
+        SerializableMesh sMesh = new SerializableMesh();
+        Vector3[] vertices = mesh.vertices;
+        sMesh.Vertices = new float[vertices.Length * 3];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            sMesh.Vertices[i * 3] = vertices[i].x;
+            sMesh.Vertices[i * 3 + 1] = vertices[i].y;
+            sMesh.Vertices[i * 3 + 2] = vertices[i].z;
+        }
+        sMesh.Triangles = mesh.triangles;
+        data.MeshData = sMesh;
+
+        if (renderer != null && renderer.material != null)
+        {
+            SerializableMaterial sMat = new SerializableMaterial();
+            sMat.ShaderName = renderer.material.shader.name;
+            sMat.Color = renderer.material.color;
+            data.MaterialData = sMat;
+        }
+        return data;
+    }
 }

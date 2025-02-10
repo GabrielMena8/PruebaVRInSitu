@@ -2,6 +2,7 @@
     using TMPro;
     using UnityEngine.UI;
     using System.Linq;
+using System.Collections.Generic;
 
     public class PanelManager : MonoBehaviour
     {
@@ -12,8 +13,13 @@
         [SerializeField] private GameObject frontPanel;
         [SerializeField] private GameObject leftPanel;
         [SerializeField] private GameObject rightPanel;
+        [SerializeField] private GameObject contextMenuPanel;
 
-        private string currentRole = "user";  // Rol actual: "user" o "admin"
+    private List<string> currentConnectedUsernames = new List<string>();
+
+
+
+    private string currentRole = "user";  // Rol actual: "user" o "admin"
         private TextMeshProUGUI roomListText;   // Texto para mostrar la lista de salas
     private Transform chatContent;
 
@@ -228,12 +234,51 @@
         }
 
 
+    /// <summary>
+    /// Método para mostrar el menú contextual reutilizando un panel ya existente.
+    /// Se asume que "contextMenuPanel" ya está asignado en el Inspector.
+    /// </summary>
+    /// <param name="users">Lista de nombres de usuarios conectados</param>
+    /// <param name="onUserSelected">Callback al seleccionar un usuario</param>
+    /// <param name="position">Posición en pantalla donde se mostrará el menú</param>
+    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 position)
+    {
+        if (contextMenuPanel == null)
+        {
+            Debug.LogError("contextMenuPanel no está asignado en PanelManager.");
+            return;
+        }
+        // Reutiliza el panel ya existente: lo limpia y lo posiciona
+        ClearPanel(contextMenuPanel);
+        RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
+        rt.position = position;
+        contextMenuPanel.SetActive(true);
 
-        /// <summary>
-        /// Muestra la lista de salas en el panel frontal.
-        /// </summary>
-        /// <param name="roomList">Lista de salas</param>
-        public void ShowRoomList(string roomList)
+        // Genera un botón para cada usuario utilizando el mismo método AddButtonToPanel
+        foreach (string user in users)
+        {
+            // Se utiliza el panel de contexto como contenedor
+            AddButtonToPanel(contextMenuPanel, user, () => { onUserSelected(user); HideContextMenu(); });
+        }
+    }
+
+    /// <summary>
+    /// Oculta el menú contextual.
+    /// </summary>
+    public void HideContextMenu()
+    {
+        if (contextMenuPanel != null)
+        {
+            contextMenuPanel.SetActive(false);
+        }
+    }
+
+
+    /// <summary>
+    /// Muestra la lista de salas en el panel frontal.
+    /// </summary>
+    /// <param name="roomList">Lista de salas</param>
+    public void ShowRoomList(string roomList)
         {
             Debug.Log("ShowRoomList llamado");
             if (roomListText != null)
@@ -285,7 +330,7 @@
         /// <summary>
         /// Maneja la visualización de los usuarios conectados y muestra un botón "Volver".
         /// </summary>
-        private void HandleViewConnectedUsers()
+        public void HandleViewConnectedUsers()
         {
             ClearPanel(rightPanel);
             AddTitleToPanel(rightPanel, "Usuarios Conectados");
@@ -554,34 +599,89 @@
         LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent as RectTransform);
     }
 
+    // Dentro de PanelManager.cs, por ejemplo, en la sección de Utility Methods o donde tengas definidos otros métodos similares.
 
+   
 
     /// <summary>
-    /// Muestra la lista de usuarios conectados en el panel derecho.
+    /// Actualiza la UI y la lista interna de usuarios conectados a partir de la cadena recibida.
+    /// Se espera el formato: 
+    /// "Sala: a - Usuarios Activos: asd (Active)"
     /// </summary>
-    /// <param name="userList">Lista de usuarios conectados</param>
     public void ShowConnectedUsers(string userList)
+    {
+        Debug.Log($"ShowConnectedUsers: Cadena recibida: '{userList}'");
+
+        // Buscamos el marcador "Usuarios Activos:"
+        string marker = "Usuarios Activos:";
+        int index = userList.IndexOf(marker);
+
+        if (index >= 0)
         {
-            Debug.Log($"Actualizando la lista de usuarios conectados en el panel: {userList}");
-            if (roomListText != null)
+            // Extraemos la parte que contiene los nombres
+            string listPart = userList.Substring(index + marker.Length).Trim();
+            Debug.Log("Parte de usuarios: '" + listPart + "'");
+
+            // Reiniciamos la lista interna
+            currentConnectedUsernames.Clear();
+
+            // Si la cadena no está vacía, la separamos en base a comas (en este caso puede ser un solo usuario)
+            if (!string.IsNullOrEmpty(listPart))
             {
-                roomListText.text = "Usuarios conectados:\n" + userList;
-            }
-            else
-            {
-                roomListText = AddTextToPanel(rightPanel, "Usuarios conectados:\n" + userList);
+                // Se espera que listPart sea, por ejemplo: "asd (Active)" o "asd (Active), bob (Active)"
+                string[] entries = listPart.Split(',');
+                foreach (string entry in entries)
+                {
+                    string trimmed = entry.Trim();
+                    // Suponemos que el nombre es la primera palabra antes del primer espacio
+                    int spaceIndex = trimmed.IndexOf(' ');
+                    string username = (spaceIndex > 0) ? trimmed.Substring(0, spaceIndex) : trimmed;
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        currentConnectedUsernames.Add(username);
+                    }
+                }
             }
         }
+        else
+        {
+            Debug.LogWarning("ShowConnectedUsers: No se encontró el marcador 'Usuarios Activos:' en la cadena recibida.");
+            currentConnectedUsernames.Clear();
+        }
 
-        #endregion
+        // Actualiza la UI en el panel derecho (puedes ajustar esto según tu diseño)
+        if (roomListText != null)
+        {
+            roomListText.text = userList;
+        }
+        else
+        {
+            roomListText = AddTextToPanel(rightPanel, userList);
+        }
 
-        #region Utility Methods
+        // Muestra en la consola la lista actualizada para verificar:
+        Debug.Log("Usuarios conectados actualizados: " + string.Join(", ", currentConnectedUsernames));
+    }
 
-        /// <summary>
-        /// Limpia el contenido de un panel específico.
-        /// </summary>
-        /// <param name="panel">El panel a limpiar.</param>
-        private void ClearPanel(GameObject panel)
+    /// <summary>
+    /// Devuelve una copia de la lista interna de usuarios conectados.
+    /// </summary>
+    public List<string> GetConnectedUsernames()
+    {
+        return new List<string>(currentConnectedUsernames);
+    }
+
+
+
+    #endregion
+
+    #region Utility Methods
+
+    /// <summary>
+    /// Limpia el contenido de un panel específico.
+    /// </summary>
+    /// <param name="panel">El panel a limpiar.</param>
+    private void ClearPanel(GameObject panel)
         {
             foreach (Transform child in panel.transform)
             {

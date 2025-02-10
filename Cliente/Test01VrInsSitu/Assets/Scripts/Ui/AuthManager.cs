@@ -121,7 +121,6 @@ public class AuthManager : MonoBehaviour
                 // Aquí se llama a ShowChatPanel para mostrar el panel de chat
                 PanelManager.Instance.ShowChatPanel(joinedRoom);
             }
-
             else if (e.Data.StartsWith("MESSAGE"))
             {
                 string receivedMessage = e.Data.Substring("MESSAGE ".Length);
@@ -158,6 +157,19 @@ public class AuthManager : MonoBehaviour
                 }
 
 
+            }
+            if (e.Data.StartsWith("OBJECT_DIRECT"))
+            {
+                // Extrae la parte JSON del mensaje
+                string objectJson = e.Data.Substring("OBJECT_DIRECT".Length).Trim();
+
+                // Deserializa el JSON en un objeto ComplexObjectData
+                ComplexObjectData data = UniversalSerializer.Deserialize<ComplexObjectData>(objectJson);
+
+                // Llama al método que instanciará el objeto en la escena
+                ObjectManager.Instance.InstantiateComplexObject(data);
+
+                Debug.Log("Objeto recibido e instanciado.");
             }
 
             // NUEVO: Manejo de la notificación de "escribiendo"

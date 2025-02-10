@@ -362,25 +362,33 @@ public class ChatRoom : WebSocketBehavior
     // Ver usuarios conectados por sala
     private void HandleViewConnected()
     {
-        if (chatRooms.Count == 0)
+        // Si el cliente no está en ninguna sala, se notifica el error.
+        if (string.IsNullOrEmpty(roomName))
         {
-            Send("No hay salas disponibles.");
+            Send("ERROR: No estás en ninguna sala.");
             return;
         }
 
-        string connectedInfo = "";
-        foreach (var room in chatRooms)
+        // Buscar la sala en la que se encuentra el cliente.
+        ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+        if (room == null)
         {
-            string usersInRoom = string.Join(", ", room.ConnectedUsers.Where(u => u.Status == UserStatus.Active)
-                                                                     .Select(u => $"{u.UserName} ({u.Status})"));
-            connectedInfo += $"Sala: {room.RoomName} - Usuarios Activos: {usersInRoom}\n";
+            Send("ERROR: Sala no encontrada.");
+            return;
         }
 
-        Send($"CONNECTED_USERS:\n{connectedInfo}");
+        // Filtrar y formatear la lista de usuarios activos (con estado Active).
+        string usersInRoom = string.Join(", ", room.ConnectedUsers
+                                                    .Where(u => u.Status == UserStatus.Active)
+                                                    .Select(u => $"{u.UserName} ({u.Status})"));
+
+        // Envía un mensaje que comienza con "CONNECTED_USERS:" seguido de la información.
+        Send($"CONNECTED_USERS:\nSala: {room.RoomName} - Usuarios Activos: {usersInRoom}");
     }
 
+
     // Manejar estado "escribiendo"
- 
+
     private void HandleTyping()
     {
         // Actualiza el estado y la última actividad
