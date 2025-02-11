@@ -1,5 +1,7 @@
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using WebSocketSharp;
 
@@ -17,8 +19,10 @@ public class AuthManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
     }
 
     private void Update()
@@ -99,26 +103,20 @@ public class AuthManager : MonoBehaviour
             }
             else if (e.Data.StartsWith("ROOMS_INFO:"))
             {
-                // Extraer la información de las salas y actualizar la UI.
                 string roomList = e.Data.Substring("ROOMS_INFO:".Length).Trim();
                 Debug.Log("Rooms Info received: " + roomList);
                 PanelManager.Instance.ShowRoomList(roomList);
             }
             else if (e.Data.StartsWith("CONNECTED_USERS:"))
             {
-                // Extraer la información de los usuarios conectados.
                 string userList = e.Data.Substring("CONNECTED_USERS:".Length).Trim();
                 Debug.Log("Connected Users Info received: " + userList);
                 PanelManager.Instance.ShowConnectedUsers(userList);
             }
-
             else if (e.Data.StartsWith("JOINED_ROOM"))
             {
-                // Extraer el nombre de la sala de la respuesta del servidor
                 string joinedRoom = e.Data.Substring("JOINED_ROOM".Length).Trim();
                 Debug.Log("Se ha unido a la sala: " + joinedRoom);
-
-                // Aquí se llama a ShowChatPanel para mostrar el panel de chat
                 PanelManager.Instance.ShowChatPanel(joinedRoom);
             }
             else if (e.Data.StartsWith("MESSAGE"))
@@ -128,7 +126,6 @@ public class AuthManager : MonoBehaviour
 
                 if (receivedMessage.Contains("[Sistema]:"))
                 {
-                    // Formatea el mensaje del sistema con colores según el tipo
                     if (receivedMessage.Contains("se ha unido a la sala"))
                     {
                         PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.green);
@@ -141,63 +138,78 @@ public class AuthManager : MonoBehaviour
                     {
                         PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.yellow);
                     }
-
                 }
-
                 if (receivedMessage.Contains("ha sido eliminada"))
                 {
-                    // Mostrar el mensaje en el chat y regresar a la pantalla principal
                     PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
-                    PanelManager.Instance.ShowMainMenu();  // Método para volver al menú principal
+                    PanelManager.Instance.ShowMainMenu();
                     PanelManager.Instance.CloseChatPanel();
                 }
                 else
                 {
                     PanelManager.Instance.AppendChatMessage(receivedMessage);
                 }
-
-
             }
-            if (e.Data.StartsWith("OBJECT_DIRECT"))
+            else if (e.Data.StartsWith("OBJECT_DIRECT"))
             {
-                // Extrae la parte JSON del mensaje
-                string objectJson = e.Data.Substring("OBJECT_DIRECT".Length).Trim();
+                string objectEncoded = e.Data.Substring("OBJECT_DIRECT".Length).Trim();
+                if (string.IsNullOrEmpty(objectEncoded))
+                {
+                    Debug.LogError("JSON recibido vacío.");
+                    return;
+                }
 
-                // Deserializa el JSON en un objeto ComplexObjectData
-                ComplexObjectData data = UniversalSerializer.Deserialize<ComplexObjectData>(objectJson);
+                
 
-                // Llama al método que instanciará el objeto en la escena
+                // 1) Decodificas Base64:
+                string decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(objectEncoded));
+
+                // 2) Deserializas en tu clase wrapper
+                var wrapper = JsonConvert.DeserializeObject<MessageWrapper<ComplexObjectData>>(decodedJson);
+
+                if (wrapper == null || wrapper.payload == null)
+                {
+                    Debug.LogError("El JSON no tiene payload o wrapper es nulo");
+                    return;
+                }
+
+
+
+                // 3) Extraes ComplexObjectData
+                ComplexObjectData data = wrapper.payload;
+                // data.MeshData ya no estará en null
                 ObjectManager.Instance.InstantiateComplexObject(data);
 
-                Debug.Log("Objeto recibido e instanciado.");
+                // Validar que data.MeshData no sea null
+                if (data.MeshData == null)
+                {
+                    Debug.LogError("Error: MeshData es nulo.");
+                    return;
+                }
+
+                // Instanciar el objeto en la escena (Unity)
+                ObjectManager.Instance.InstantiateComplexObject(data);
             }
 
-            // NUEVO: Manejo de la notificación de "escribiendo"
+
             else if (e.Data.StartsWith("TYPING"))
             {
-                // Extraer el nombre del usuario que está escribiendo.
                 string typingUser = e.Data.Substring("TYPING".Length).Trim();
                 Debug.Log($"{typingUser} está escribiendo...");
-                // Llamar a un método en PanelManager para actualizar el indicador.
                 PanelManager.Instance.ShowTypingIndicator(typingUser);
             }
-
             else if (e.Data.StartsWith("USER_DISCONNECTED"))
             {
                 string disconnectedUser = e.Data.Substring("USER_DISCONNECTED".Length).Trim();
                 Debug.Log($"{disconnectedUser} se ha desconectado.");
                 ChatClient.Instance.HandleUserDisconnected(disconnectedUser);
             }
-
             else
             {
-                // Otros mensajes, se pueden manejar de la manera que prefieras.
                 Debug.Log("Mensaje recibido: " + e.Data);
             }
         });
     }
-
-
 
     private void ReconnectWebSocket()
     {
@@ -211,7 +223,7 @@ public class AuthManager : MonoBehaviour
         ws.OnOpen += (sender, e) =>
         {
             Debug.Log("Reconexión establecida.");
-            // Opcional: reenviar LOGIN si fuera necesario
+            // Opcional: reenviar LOGIN si es necesario
         };
         ws.OnMessage += OnMessageReceived;
         ws.OnClose += (sender, e) =>

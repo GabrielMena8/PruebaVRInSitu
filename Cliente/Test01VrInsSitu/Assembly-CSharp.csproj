@@ -64,12 +64,12 @@
     <Compile Include="Assets\Scripts\Ui\AuthManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMesh.cs" />
     <Compile Include="Assets\Scripts\Clients\Chat_Client.cs" />
+    <Compile Include="Assets\Scripts\Interaction\ObjectManipulator.cs" />
     <Compile Include="Assets\Scripts\Serialization\Vector3ToJsonConverter.cs" />
     <Compile Include="Assets\Scripts\Serialization\FileData.cs" />
     <Compile Include="Assets\Scripts\Serialization\QuarternionToJsonConverter.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMaterial.cs" />
     <Compile Include="Assets\Scripts\Serialization\ObjectManager.cs" />
-    <Compile Include="Assets\Scripts\Interaction\ClickManager.cs" />
     <Compile Include="Assets\Scripts\Ui\PanelManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\ComplexObjectData.cs" />
     <Compile Include="Assets\Scripts\Ui\Uiutilities.cs" />

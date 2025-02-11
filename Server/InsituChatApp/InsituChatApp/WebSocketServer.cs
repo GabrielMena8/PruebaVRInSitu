@@ -95,6 +95,10 @@ public class ChatRoom : WebSocketBehavior
                     case "STATS":
                         HandleStats();
                         break;
+
+                    case "SEND_OBJECT":
+                        HandleSendObject(messageParts);
+                        break;
                     default:
                         Send("Comando no reconocido. Escribe 'HELP' para ver la lista de comandos disponibles.");
                         break;
@@ -139,6 +143,7 @@ public class ChatRoom : WebSocketBehavior
             // Eliminar al usuario de la lista global de usuarios conectados
             connectedUsers.Remove(userName);
             Console.WriteLine($"{userName} se ha desconectado.");
+            BroadcastConnectedUsers();
         }
     }
 
@@ -306,6 +311,7 @@ public class ChatRoom : WebSocketBehavior
         }
 
         Console.WriteLine($"{userName} se ha unido a la sala {roomName}.");
+        BroadcastConnectedUsers();
     }
 
 
@@ -391,24 +397,49 @@ public class ChatRoom : WebSocketBehavior
 
     private void HandleTyping()
     {
-        // Actualiza el estado y la última actividad
-        connectedUsers[userName].Status = UserStatus.Typing;
-        connectedUsers[userName].LastActivity = DateTime.Now;
-
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine($"{userName} está escribiendo...");
-        Console.ResetColor();
-
-        // NUEVO: Difundir el estado TYPING a los demás clientes en la misma sala
-        foreach (ChatRoom client in clients)
+        // Actualiza el estado del usuario
+        if (!string.IsNullOrEmpty(userName) && connectedUsers.ContainsKey(userName))
         {
-            // Enviar a todos los clientes que estén en la misma sala, excepto al que está escribiendo
-            if (client.roomName == this.roomName && client.userName != this.userName)
+            connectedUsers[userName].Status = UserStatus.Typing;
+            connectedUsers[userName].LastActivity = DateTime.Now;
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"{userName} está escribiendo...");
+            Console.ResetColor();
+
+            // Difundir el estado TYPING a los demás clientes en la misma sala
+            foreach (ChatRoom client in clients)
             {
-                client.Send("TYPING " + userName);
+                if (client.roomName == this.roomName && client.userName != this.userName)
+                {
+                    client.Send("TYPING " + userName);
+                }
             }
         }
     }
+
+
+    private void BroadcastConnectedUsers()
+    {
+        // Buscar la sala a la que pertenece el cliente actual.
+        ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+        if (room == null)
+            return;
+
+        // Construir la cadena de usuarios conectados.
+        string users = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
+        string message = $"CONNECTED_USERS:\nSala: {roomName} - Usuarios Activos: {users}";
+
+        // Difundir el mensaje a todos los clientes en la misma sala.
+        foreach (ChatRoom client in clients)
+        {
+            if (client.roomName == roomName)
+            {
+                client.Send(message);
+            }
+        }
+    }
+
 
 
     // Manejar mensaje normal y difundirlo a los clientes de la misma sala
@@ -438,6 +469,43 @@ public class ChatRoom : WebSocketBehavior
             }
         }
     }
+
+
+    /// <summary>
+    /// Maneja el comando SEND_OBJECT.
+    /// Formato esperado: "SEND_OBJECT <targetUser> <objectDataJson>"
+    /// </summary>
+    private void HandleSendObject(string[] fullMessage)
+    {
+        if (fullMessage.Length < 3)
+        {
+            Send("ERROR: Formato de SEND_OBJECT incorrecto.");
+            return;
+        }
+
+        string targetUser = fullMessage[1].Trim();
+        string encodedJson = fullMessage[2];
+
+        bool enviado = false;
+        foreach (ChatRoom client in clients)
+        {
+            if (client.roomName == this.roomName && client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
+            {
+                client.Send("OBJECT_DIRECT " + encodedJson);
+                enviado = true;
+                break;
+            }
+        }
+
+        if (!enviado)
+        {
+            Send("ERROR: Usuario destino no encontrado en la sala.");
+        }
+    }
+
+
+
+
 
 
 
@@ -488,7 +556,7 @@ public class ChatRoom : WebSocketBehavior
     {
         foreach (var user in connectedUsers.Values)
         {
-            if (user.IsInactive(5))  // 5 minutos de inactividad
+            if (user.IsInactive(60))  //  segundos de inactividad
             {
                 if (user.Status != UserStatus.Inactive)
                 {
@@ -564,4 +632,6 @@ class InsituChatServer
         }
     }
 }
+
+
     

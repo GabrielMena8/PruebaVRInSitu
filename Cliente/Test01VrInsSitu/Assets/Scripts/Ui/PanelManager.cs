@@ -15,7 +15,7 @@ using System.Collections.Generic;
         [SerializeField] private GameObject rightPanel;
         [SerializeField] private GameObject contextMenuPanel;
 
-    private List<string> currentConnectedUsernames = new List<string>();
+    public List<string> currentConnectedUsernames = new List<string>();
 
 
 
@@ -241,23 +241,55 @@ using System.Collections.Generic;
     /// <param name="users">Lista de nombres de usuarios conectados</param>
     /// <param name="onUserSelected">Callback al seleccionar un usuario</param>
     /// <param name="position">Posición en pantalla donde se mostrará el menú</param>
-    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 position)
+    /// <summary>
+    /// Muestra el menú contextual en el Canvas en la posición convertida, con la componente Z deseada.
+    /// </summary>
+    /// <param name="users">Lista de nombres de usuarios conectados</param>
+    /// <param name="onUserSelected">Callback al seleccionar un usuario</param>
+    /// <param name="screenPosition">Posición en pantalla (obtenida, por ejemplo, de WorldToScreenPoint)</param>
+    /// <param name="desiredZ">Valor Z deseado para la posición local del menú</param>
+    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ)
     {
         if (contextMenuPanel == null)
         {
             Debug.LogError("contextMenuPanel no está asignado en PanelManager.");
             return;
         }
-        // Reutiliza el panel ya existente: lo limpia y lo posiciona
+
+        // Limpia el contenido anterior del panel
         ClearPanel(contextMenuPanel);
-        RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
-        rt.position = position;
+
+        // Obtener el Canvas en el que se encuentra el panel contextual
+        Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
+            return;
+        }
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+        // Convertir la posición de pantalla al sistema local del Canvas
+        Vector2 localPoint;
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvasRect,
+                screenPosition,
+                canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
+                out localPoint))
+        {
+            RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
+            // Asigna las coordenadas X e Y obtenidas y la componente Z deseada
+            rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
+        }
+        else
+        {
+            Debug.LogWarning("No se pudo convertir la posición de pantalla a local.");
+        }
+
         contextMenuPanel.SetActive(true);
 
-        // Genera un botón para cada usuario utilizando el mismo método AddButtonToPanel
+        // Genera un botón para cada usuario
         foreach (string user in users)
         {
-            // Se utiliza el panel de contexto como contenedor
             AddButtonToPanel(contextMenuPanel, user, () => { onUserSelected(user); HideContextMenu(); });
         }
     }
@@ -273,6 +305,7 @@ using System.Collections.Generic;
         }
     }
 
+  
 
     /// <summary>
     /// Muestra la lista de salas en el panel frontal.

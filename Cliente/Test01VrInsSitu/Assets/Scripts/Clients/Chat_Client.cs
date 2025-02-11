@@ -1,20 +1,21 @@
 using UnityEngine;
-using System;
-using System.Collections.Generic;
 using WebSocketSharp;
+using Newtonsoft.Json;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 
 public class ChatClient : MonoBehaviour
 {
     public static ChatClient Instance;
     private Queue<Action> mainThreadActions = new Queue<Action>();
+    private bool isTyping;
 
     [Header("Referencias a otros componentes")]
-    public CameraNavigator cameraNavigator;    // Se usa para actualizar la UI de la cámara, etc.
-    public PanelManager dynamicPanelManager;     // Se usa para actualizar el panel principal (menú, chat, etc.)
-    public Login loginManager;                   // Referencia al script de Login para ocultar la pantalla de login
+    public CameraNavigator cameraNavigator;
+    public PanelManager dynamicPanelManager;
+    public Login loginManager;
 
-    private bool isTyping;
     private void Awake()
     {
         if (Instance == null)
@@ -25,14 +26,14 @@ public class ChatClient : MonoBehaviour
 
     private void Start()
     {
-        // Suscribirse a los eventos de autenticación que se disparan desde AuthManager
+        // Escuchar eventos de AuthManager cuando hay éxito/error de login
         AuthManager.Instance.OnLoginSuccess += HandleLoginSuccess;
         AuthManager.Instance.OnLoginError += HandleLoginError;
     }
 
     private void Update()
     {
-        // Procesar las acciones pendientes en el hilo principal
+        // Ejecutar acciones pendientes en el hilo principal
         while (mainThreadActions.Count > 0)
         {
             var action = mainThreadActions.Dequeue();
@@ -42,7 +43,6 @@ public class ChatClient : MonoBehaviour
 
     private void HandleLoginSuccess(string role)
     {
-        // Cuando el login es exitoso, se actualiza la UI: se oculta el panel de login y se configura el menú principal.
         mainThreadActions.Enqueue(() =>
         {
             loginManager.loginPanel.SetActive(false);
@@ -53,10 +53,18 @@ public class ChatClient : MonoBehaviour
 
     private void HandleLoginError(string error)
     {
-        // Se muestra el error en la consola o se actualiza la UI para informar al usuario.
         mainThreadActions.Enqueue(() =>
         {
             Debug.Log("Error de inicio de sesión: " + error);
+        });
+    }
+
+    public void HandleUserDisconnected(string username)
+    {
+        mainThreadActions.Enqueue(() =>
+        {
+            Debug.Log($"{username} se ha desconectado.");
+            PanelManager.Instance.RemoveUserFromUI(username);
         });
     }
 
@@ -68,7 +76,7 @@ public class ChatClient : MonoBehaviour
             if (ws != null && ws.ReadyState == WebSocketState.Open)
             {
                 ws.Send("TYPING");
-                isTyping = true;  // Marca como que ya está escribiendo
+                isTyping = true;
             }
             else
             {
@@ -76,123 +84,75 @@ public class ChatClient : MonoBehaviour
             }
         }
     }
-    #region Métodos para Enviar Comandos
+
+    #region Métodos para Enviar Comandos (Salas, Usuarios, Mensajes)
 
     public void CreateRoom(string roomName)
     {
-        Debug.Log($"Intentando crear sala: {roomName}");
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send($"CREATE_ROOM {roomName}");
-        }
         else
-        {
             Debug.LogError("No se puede crear la sala. El WebSocket no está conectado.");
-        }
     }
 
     public void DeleteRoom(string roomName)
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send($"DELETE_ROOM {roomName}");
-        }
     }
 
     public void DeleteUser(string username)
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send($"DELETE_USER {username}");
-        }
     }
 
     public void ViewRooms()
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send("VIEW_ROOMS");
-        }
     }
 
     public void ViewConnectedUsers()
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send("VIEW_CONNECTED");
-        }
     }
 
-    // NUEVO: Método para unirse a una sala.
     public void JoinRoom(string roomName)
     {
-        Debug.Log($"Intentando unirse a sala: {roomName}");
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
             ws.Send($"JOIN_ROOM {roomName}");
-        }
         else
-        {
             Debug.LogError("No se puede unir a la sala. El WebSocket no está conectado.");
-        }
     }
 
-    public void HandleUserDisconnected(string username)
-    {
-        mainThreadActions.Enqueue(() =>
-        {
-            Debug.Log($"{username} se ha desconectado.");
-            PanelManager.Instance.RemoveUserFromUI(username);  // Método para eliminar al usuario de la UI
-        });
-    }
-
-    // NUEVO: Método para enviar un mensaje a la sala a la que se ha unido.
     public void SendMessageToRoom(string message)
     {
-        Debug.Log($"Enviando mensaje: {message}");
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
         {
             ws.Send($"MESSAGE {message}");
-            isTyping = false;  // Reinicia el estado de escritura
+            isTyping = false;
         }
         else
         {
             Debug.LogError("No se puede enviar el mensaje. El WebSocket no está conectado.");
         }
     }
-
-    /// <summary>
-    /// Envía el objeto (o sus datos) a un usuario específico.
-    /// Se utiliza el comando "SEND_OBJECT" que el servidor procesará para enviar de forma dirigida.
-    /// </summary>
-    /// <param name="targetUser">Usuario destino</param>
-    /// <param name="objectDataJson">Datos del objeto en JSON</param>
-    public void SendObjectToUser(string targetUser, string objectDataJson)
-    {
-        string message = $"SEND_OBJECT {targetUser} {objectDataJson}";
-        WebSocket ws = AuthManager.Instance.WS;
-        if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
-            ws.Send(message);
-            Debug.Log("Enviando objeto a " + targetUser + ": " + message);
-        }
-        else
-        {
-            Debug.LogError("No se puede enviar el objeto. El WebSocket no está conectado.");
-        }
-    }
-
     #endregion
 
+    #region Envío de Objetos 3D
 
-
+    /// <summary>
+    /// Se llama cuando se hace clic en un objeto 3D.
+    /// </summary>
     public void OnObjectClicked(GameObject obj)
     {
         if (obj == null)
@@ -201,7 +161,7 @@ public class ChatClient : MonoBehaviour
             return;
         }
 
-        // Obtener los datos del objeto
+        // Serializar el objeto en ComplexObjectData
         ComplexObjectData data = GetComplexObjectData(obj);
         if (data == null)
         {
@@ -209,45 +169,65 @@ public class ChatClient : MonoBehaviour
             return;
         }
 
-        // Serializar la información del objeto en un mensaje universal
+        // Enviar con el wrapper "OBJECT_COMPLEX" + payload
+        // O si prefieres, remove el wrapper y haz: JsonConvert.SerializeObject(data)
         string objectDataJson = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
+        // Codificar a Base64
+        string encodedJson = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(objectDataJson));
+        Debug.Log("Objeto serializado en Base64: " + encodedJson);
 
-        // Consultar la lista de usuarios conectados
+        // Obtener la lista de usuarios conectados para mostrar el menú contextual
         List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
         if (connectedUsers == null || connectedUsers.Count == 0)
         {
             Debug.LogWarning("OnObjectClicked: No hay usuarios conectados. Solicitando actualización...");
-            // Solicitar la actualización de la lista
             ViewConnectedUsers();
-            // Reintentar el envío después de un breve retraso
-            StartCoroutine(RetryOnObjectClicked(obj, objectDataJson));
+            StartCoroutine(RetryOnObjectClicked(obj));
             return;
         }
 
-        // Si hay usuarios, mostrar el menú contextual
+        // Convertir la posición del objeto a coordenadas de pantalla para colocar el menú
+        Vector3 screenPos = Camera.main.WorldToScreenPoint(obj.transform.position);
+        float desiredZ = screenPos.z;
+
+        // Mostrar el menú contextual con la lista de usuarios
         PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
         {
-            SendObjectToUser(selectedUser, objectDataJson);
-        }, Input.mousePosition);
+            // Enviar el objeto (encodedJson) al usuario seleccionado
+            SendObjectToUser(selectedUser, encodedJson);
+        }, screenPos, desiredZ);
     }
 
     /// <summary>
-    /// Coroutine que reintenta la acción de OnObjectClicked después de un breve retraso.
+    /// Reintenta mostrar el menú contextual tras un breve retraso, en caso de que no hubiera usuarios.
     /// </summary>
-    private IEnumerator RetryOnObjectClicked(GameObject obj, string objectDataJson)
+    private IEnumerator RetryOnObjectClicked(GameObject obj)
     {
-        // Espera 0.5 segundos (ajusta el tiempo según tus necesidades)
         yield return new WaitForSeconds(0.5f);
 
-        // Vuelve a obtener la lista actualizada de usuarios conectados
         List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
         if (connectedUsers != null && connectedUsers.Count > 0)
         {
             Debug.Log("RetryOnObjectClicked: Lista actualizada: " + string.Join(", ", connectedUsers));
+
+            // Serializar el objeto nuevamente
+            ComplexObjectData data = GetComplexObjectData(obj);
+            if (data == null)
+            {
+                Debug.LogError("No se pudo obtener los datos del objeto.");
+                yield break;
+            }
+
+            string serializedObjectData = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
+            string encodedObjectData = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(serializedObjectData));
+
+            Vector3 screenPos = Camera.main.WorldToScreenPoint(obj.transform.position);
+            float desiredZ = screenPos.z;
+
             PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
             {
-                SendObjectToUser(selectedUser, objectDataJson);
-            }, Input.mousePosition);
+                SendObjectToUser(selectedUser, encodedObjectData);
+            }, screenPos, desiredZ);
         }
         else
         {
@@ -255,13 +235,30 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-
-
-
     /// <summary>
-    /// Función auxiliar para empaquetar la información de un objeto en un ComplexObjectData.
+    /// Envía el objeto serializado (encodedJson) al usuario destino.
     /// </summary>
-    private ComplexObjectData GetComplexObjectData(GameObject obj)
+    public void SendObjectToUser(string targetUser, string encodedJson)
+    {
+        WebSocket ws = AuthManager.Instance.WS;
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            // Envía el mensaje con el comando SEND_OBJECT
+            ws.Send($"SEND_OBJECT {targetUser} {encodedJson}");
+            Debug.Log("Objeto enviado a " + targetUser);
+        }
+        else
+        {
+            Debug.LogError("No se puede enviar el objeto. El WebSocket no está conectado.");
+        }
+    }
+
+
+
+/// <summary>
+/// Serializa un objeto 3D de Unity (Mesh, Material, Transform) a ComplexObjectData
+/// </summary>
+private ComplexObjectData GetComplexObjectData(GameObject obj)
     {
         MeshFilter meshFilter = obj.GetComponent<MeshFilter>();
         Renderer renderer = obj.GetComponent<Renderer>();
@@ -278,18 +275,7 @@ public class ChatClient : MonoBehaviour
         data.Rotation = obj.transform.rotation;
         data.Scale = obj.transform.localScale;
 
-        Mesh mesh = meshFilter.mesh;
-        SerializableMesh sMesh = new SerializableMesh();
-        Vector3[] vertices = mesh.vertices;
-        sMesh.Vertices = new float[vertices.Length * 3];
-        for (int i = 0; i < vertices.Length; i++)
-        {
-            sMesh.Vertices[i * 3] = vertices[i].x;
-            sMesh.Vertices[i * 3 + 1] = vertices[i].y;
-            sMesh.Vertices[i * 3 + 2] = vertices[i].z;
-        }
-        sMesh.Triangles = mesh.triangles;
-        data.MeshData = sMesh;
+        data.MeshData = SerializableMesh.FromMesh(meshFilter.mesh);
 
         if (renderer != null && renderer.material != null)
         {
@@ -300,4 +286,5 @@ public class ChatClient : MonoBehaviour
         }
         return data;
     }
+    #endregion
 }

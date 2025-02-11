@@ -1,5 +1,5 @@
-using UnityEngine;
 using Newtonsoft.Json;
+using UnityEngine;
 
 [System.Serializable]
 public class SerializableMaterial
@@ -9,6 +9,5 @@ public class SerializableMaterial
 
     [JsonProperty("color")]
     [JsonConverter(typeof(ColorToJsonConverter))]
-
     public Color Color { get; set; }
 }

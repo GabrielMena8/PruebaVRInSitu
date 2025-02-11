@@ -1,6 +1,5 @@
 using UnityEngine;
 
-
 public class ObjectManager : MonoBehaviour
 {
     public static ObjectManager Instance;
@@ -13,59 +12,73 @@ public class ObjectManager : MonoBehaviour
             Destroy(gameObject);
     }
 
-    /// <summary>
-    /// Instancia un objeto en la escena utilizando los datos del objeto complejo.
-    /// </summary>
-    /// <param name="data">Datos serializados del objeto.</param>
     public void InstantiateComplexObject(ComplexObjectData data)
     {
-        if (data == null)
+        // Crear un GameObject
+        GameObject newObject = new GameObject(data.ObjectName);
+
+        // Crear la malla
+        Mesh mesh = CreateMeshFromData(data.MeshData);
+        if (mesh == null)
         {
-            Debug.LogError("InstantiateComplexObject: Los datos del objeto son nulos.");
+            Debug.LogError("Error: La malla no se creó correctamente.");
             return;
         }
 
-        // Crear un nuevo GameObject con el nombre recibido
-        GameObject obj = new GameObject(data.ObjectName);
-        obj.transform.position = data.Position;
-        obj.transform.rotation = data.Rotation;
-        obj.transform.localScale = data.Scale;
+        // Asignar la malla
+        MeshFilter meshFilter = newObject.AddComponent<MeshFilter>();
+        meshFilter.mesh = mesh;
 
-        // Crear la malla a partir de los datos serializados
+        // Asignar material
+        MeshRenderer meshRenderer = newObject.AddComponent<MeshRenderer>();
+        Material material = new Material(Shader.Find(data.MaterialData.ShaderName));
+        material.color = data.MaterialData.Color;
+        meshRenderer.material = material;
+
+        // Asignar posición, rotación y escala
+        newObject.transform.position = data.Position;
+        newObject.transform.rotation = data.Rotation;
+        newObject.transform.localScale = data.Scale;
+
+        Debug.Log("Objeto instanciado: " + data.ObjectName);
+    }
+
+    private Mesh CreateMeshFromData(SerializableMesh meshData)
+    {
         Mesh mesh = new Mesh();
-        int vertexCount = data.MeshData.Vertices.Length / 3;
-        Vector3[] vertices = new Vector3[vertexCount];
-        for (int i = 0; i < vertexCount; i++)
+
+        if (meshData.Vertices != null && meshData.Vertices.Length > 0)
+            mesh.vertices = ConvertToVector3Array(meshData.Vertices);
+
+        if (meshData.Triangles != null && meshData.Triangles.Length > 0)
+            mesh.triangles = meshData.Triangles;
+
+        if (meshData.Normals != null && meshData.Normals.Length == meshData.Vertices.Length)
+            mesh.normals = ConvertToVector3Array(meshData.Normals);
+
+        if (meshData.UV != null && meshData.UV.Length == meshData.Vertices.Length)
+            mesh.uv = ConvertToUVArray(meshData.UV);
+
+        return mesh;
+    }
+
+    private Vector3[] ConvertToVector3Array(float[] array)
+    {
+        Vector3[] result = new Vector3[array.Length / 3];
+        for (int i = 0; i < array.Length; i += 3)
         {
-            vertices[i] = new Vector3(
-                data.MeshData.Vertices[i * 3],
-                data.MeshData.Vertices[i * 3 + 1],
-                data.MeshData.Vertices[i * 3 + 2]);
+            result[i / 3] = new Vector3(array[i], array[i + 1], array[i + 2]);
         }
-        mesh.vertices = vertices;
-        mesh.triangles = data.MeshData.Triangles;
-        // (Opcional) Asigna normales, UV, etc. si están en data.MeshData
+        return result;
+    }
 
-        // Agregar componentes necesarios
-        MeshFilter mf = obj.AddComponent<MeshFilter>();
-        mf.mesh = mesh;
-        MeshRenderer mr = obj.AddComponent<MeshRenderer>();
-
-        // Asignar el material si está disponible
-        if (data.MaterialData != null)
+    private Vector2[] ConvertToUVArray(float[] uvArray)
+    {
+        Vector2[] uv = new Vector2[uvArray.Length / 2];
+        for (int i = 0; i < uvArray.Length; i += 2)
         {
-            Material mat = new Material(Shader.Find(data.MaterialData.ShaderName));
-            mat.color = data.MaterialData.Color;
-            mr.material = mat;
+            uv[i / 2] = new Vector2(uvArray[i], uvArray[i + 1]);
         }
-        else
-        {
-            mr.material = new Material(Shader.Find("Standard"));
-        }
-
-        // (Opcional) Agregar un script de manipulación si lo deseas
-        // obj.AddComponent<ObjectManipulator>();
-
-        Debug.Log($"Instanciado objeto: {data.ObjectName}");
+        return uv;
     }
 }

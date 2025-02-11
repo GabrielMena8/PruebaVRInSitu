@@ -1,11 +1,5 @@
-using Newtonsoft.Json;
-
-[System.Serializable]
-public class UniversalMessage
+public class MessageWrapper<T>
 {
-    [JsonProperty("command")]
-    public string Command { get; set; }
-
-    [JsonProperty("payload")]
-    public string Payload { get; set; }
+    public string command { get; set; }
+    public T payload { get; set; }
 }

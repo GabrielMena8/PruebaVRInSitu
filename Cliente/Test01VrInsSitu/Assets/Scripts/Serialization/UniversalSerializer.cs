@@ -1,34 +1,31 @@
 using Newtonsoft.Json;
+using System;
 
 public static class UniversalSerializer
 {
-    // Serializa un objeto a JSON usando Newtonsoft.Json
     public static string Serialize<T>(T obj)
     {
-        return JsonConvert.SerializeObject(obj);
+        return JsonConvert.SerializeObject(obj, Formatting.None);
     }
 
-    // Deserializa un JSON a un objeto del tipo T
     public static T Deserialize<T>(string json)
     {
         return JsonConvert.DeserializeObject<T>(json);
     }
 
-    // Crea un mensaje universal a partir de un comando y un objeto payload
+    /// <summary>
+    /// Crea un mensaje universal con un comando y un payload.
+    /// Se evita la doble serialización del payload.
+    /// </summary>
     public static string CreateUniversalMessage<T>(string command, T payload)
     {
-        UniversalMessage msg = new UniversalMessage
+        var message = new
         {
-            Command = command,
-            Payload = Serialize(payload)
+            command = command,
+            payload = payload
         };
-        return Serialize(msg);
+
+        return JsonConvert.SerializeObject(message, Formatting.None);
     }
 
-    // Extrae el payload del mensaje universal según el tipo esperado
-    public static T ExtractPayload<T>(string universalMessageJson)
-    {
-        UniversalMessage msg = Deserialize<UniversalMessage>(universalMessageJson);
-        return Deserialize<T>(msg.Payload);
-    }
 }
