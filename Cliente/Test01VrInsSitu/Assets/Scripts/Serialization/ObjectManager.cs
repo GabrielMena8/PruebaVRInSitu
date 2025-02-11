@@ -28,17 +28,27 @@ public class ObjectManager : MonoBehaviour
         // Asignar la malla
         MeshFilter meshFilter = newObject.AddComponent<MeshFilter>();
         meshFilter.mesh = mesh;
-
+        Camera mainCam = Camera.main;
         // Asignar material
         MeshRenderer meshRenderer = newObject.AddComponent<MeshRenderer>();
         Material material = new Material(Shader.Find(data.MaterialData.ShaderName));
         material.color = data.MaterialData.Color;
         meshRenderer.material = material;
 
+
+        Vector3 frontOfCam = mainCam.transform.position + mainCam.transform.forward * 5.0f ;
+
+        // Configurar transform
+        newObject.transform.position = frontOfCam;
+     
+
         // Asignar posición, rotación y escala
-        newObject.transform.position = data.Position;
+      
         newObject.transform.rotation = data.Rotation;
         newObject.transform.localScale = data.Scale;
+        newObject.AddComponent<ObjectManipulator>();
+        newObject.AddComponent<MeshCollider>();
+
 
         Debug.Log("Objeto instanciado: " + data.ObjectName);
     }

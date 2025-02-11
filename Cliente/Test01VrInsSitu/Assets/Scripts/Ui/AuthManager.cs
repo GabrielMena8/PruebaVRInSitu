@@ -178,7 +178,7 @@ public class AuthManager : MonoBehaviour
                 // 3) Extraes ComplexObjectData
                 ComplexObjectData data = wrapper.payload;
                 // data.MeshData ya no estará en null
-                ObjectManager.Instance.InstantiateComplexObject(data);
+               
 
                 // Validar que data.MeshData no sea null
                 if (data.MeshData == null)

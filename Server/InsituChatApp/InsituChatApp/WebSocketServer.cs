@@ -489,6 +489,11 @@ public class ChatRoom : WebSocketBehavior
         bool enviado = false;
         foreach (ChatRoom client in clients)
         {
+            if (client.userName == this.userName)
+            {
+                continue;  // No enviar el objeto al usuario que lo envió
+            }
+     
             if (client.roomName == this.roomName && client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
             {
                 client.Send("OBJECT_DIRECT " + encodedJson);
