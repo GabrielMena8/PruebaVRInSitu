@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using SFB;
 
 public class ChatClient : MonoBehaviour
 {
@@ -255,10 +256,108 @@ public class ChatClient : MonoBehaviour
 
 
 
-/// <summary>
-/// Serializa un objeto 3D de Unity (Mesh, Material, Transform) a ComplexObjectData
-/// </summary>
-private ComplexObjectData GetComplexObjectData(GameObject obj)
+
+
+    public void SendFileToRoom(string roomName, string filePath)
+    {
+        // Lee el archivo
+        byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+        string base64Content = Convert.ToBase64String(fileBytes);
+
+        // Crea un FileData (o la clase que uses)
+        FileData fileData = new FileData
+        {
+            FileName = System.IO.Path.GetFileName(filePath),
+            FileType = "application/octet-stream",  // o "image/png", etc.
+            ContentBase64 = base64Content
+        };
+
+        // Serializa a JSON
+        string fileDataJson = JsonConvert.SerializeObject(fileData);
+
+        // Envías con un comando "SEND_FILE_ROOM"
+        // (Necesitas que tu servidor maneje "SEND_FILE_ROOM {roomName} {fileDataJson}" y 
+        // reenvíe "FILE_DIRECT" a todos en la sala. O la forma que hayas definido)
+        WebSocket ws = AuthManager.Instance.WS;
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send($"SEND_FILE_ROOM {roomName} {fileDataJson}");
+            Debug.Log($"Archivo [{fileData.FileName}] enviado a la sala {roomName}");
+        }
+        else
+        {
+            Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+        }
+    }
+
+    public void SendFilesToRoom(List<string> filePaths)
+    {
+        // Aquí debes obtener la sala actual; en este ejemplo se usa un valor fijo
+        string roomName = "SalaActual"; // Reemplaza con tu lógica real
+
+        foreach (string filePath in filePaths)
+        {
+            byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+            string base64Content = Convert.ToBase64String(fileBytes);
+
+            FileData fileData = new FileData
+            {
+                FileName = System.IO.Path.GetFileName(filePath),
+                FileType = "application/octet-stream",  // Ajusta según la extensión
+                ContentBase64 = base64Content
+            };
+
+            string fileDataJson = JsonConvert.SerializeObject(fileData);
+            WebSocket ws = AuthManager.Instance.WS;
+            if (ws != null && ws.ReadyState == WebSocketState.Open)
+            {
+                ws.Send($"SEND_FILE_ROOM {roomName} {fileDataJson}");
+                Debug.Log($"Archivo [{fileData.FileName}] enviado a la sala {roomName}");
+            }
+            else
+            {
+                Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+            }
+        }
+    }
+
+
+    private void SendFileToUser(string targetUser, string filePath)
+    {
+        // Lee el archivo
+        byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+        string base64Content = Convert.ToBase64String(fileBytes);
+        // Crea un FileData (o la clase que uses)
+        FileData fileData = new FileData
+        {
+            FileName = System.IO.Path.GetFileName(filePath),
+            FileType = "application/octet-stream",  // o "image/png", etc.
+            ContentBase64 = base64Content
+        };
+        // Serializa a JSON
+        string fileDataJson = JsonConvert.SerializeObject(fileData);
+        // Envías con un comando "SEND_FILE_USER"
+        // (Necesitas que tu servidor maneje "SEND_FILE_USER {targetUser} {fileDataJson}" y 
+        // reenvíe "FILE_DIRECT" al usuario. O la forma que hayas definido)
+        WebSocket ws = AuthManager.Instance.WS;
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            ws.Send($"SEND_FILE_USER {targetUser} {fileDataJson}");
+            Debug.Log($"Archivo [{fileData.FileName}] enviado a {targetUser}");
+        }
+        else
+        {
+            Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// Serializa un objeto 3D de Unity (Mesh, Material, Transform) a ComplexObjectData
+    /// </summary>
+    private ComplexObjectData GetComplexObjectData(GameObject obj)
     {
         MeshFilter meshFilter = obj.GetComponent<MeshFilter>();
         Renderer renderer = obj.GetComponent<Renderer>();

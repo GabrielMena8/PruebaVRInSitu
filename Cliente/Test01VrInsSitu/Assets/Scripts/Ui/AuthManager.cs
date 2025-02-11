@@ -93,6 +93,7 @@ public class AuthManager : MonoBehaviour
                 {
                     string role = responseParts[1];
                     Debug.Log($"Login exitoso. Rol: {role}");
+                    PanelManager.Instance.ConfigurePanels(role);
                     OnLoginSuccess?.Invoke(role);
                 }
             }
@@ -190,6 +191,51 @@ public class AuthManager : MonoBehaviour
                 // Instanciar el objeto en la escena (Unity)
                 ObjectManager.Instance.InstantiateComplexObject(data);
             }
+
+            else if (e.Data.StartsWith("FILE_DIRECT"))
+            {
+                string fileJson = e.Data.Substring("FILE_DIRECT".Length).Trim();
+                FileData fileData = JsonConvert.DeserializeObject<FileData>(fileJson);
+
+                byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
+                string path = Application.persistentDataPath + "/" + fileData.FileName;
+                System.IO.File.WriteAllBytes(path, fileBytes);
+                Debug.Log("Archivo recibido y guardado en: " + path);
+
+                
+
+            }
+
+            else if (e.Data.StartsWith("FILE_DIRECT"))
+            {
+                string fileJson = e.Data.Substring("FILE_DIRECT".Length).Trim();
+                if (string.IsNullOrEmpty(fileJson))
+                {
+                    Debug.LogError("JSON para archivo está vacío.");
+                    return;
+                }
+                try
+                {
+                    FileData fileData = JsonConvert.DeserializeObject<FileData>(fileJson);
+                    if (fileData == null)
+                    {
+                        Debug.LogError("Error: FileData es nulo.");
+                        return;
+                    }
+                    byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
+                    string savePath = Application.persistentDataPath + "/" + fileData.FileName;
+                    System.IO.File.WriteAllBytes(savePath, fileBytes);
+                    Debug.Log($"Archivo recibido y guardado en: {savePath}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("Error al procesar archivo: " + ex.Message);
+                }
+            }
+
+
+
+
 
 
             else if (e.Data.StartsWith("TYPING"))

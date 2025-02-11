@@ -99,6 +99,9 @@ public class ChatRoom : WebSocketBehavior
                     case "SEND_OBJECT":
                         HandleSendObject(messageParts);
                         break;
+                    case "SEND_FILE_ROOM":
+                        HandleSendFileRoom(messageParts);
+                        break;
                     default:
                         Send("Comando no reconocido. Escribe 'HELP' para ver la lista de comandos disponibles.");
                         break;
@@ -493,7 +496,7 @@ public class ChatRoom : WebSocketBehavior
             {
                 continue;  // No enviar el objeto al usuario que lo envió
             }
-     
+
             if (client.roomName == this.roomName && client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
             {
                 client.Send("OBJECT_DIRECT " + encodedJson);
@@ -581,6 +584,29 @@ public class ChatRoom : WebSocketBehavior
         }
     }
 
+    //Handle de files
+    private void HandleSendFileRoom(string[] parts)
+    {
+        if (parts.Length < 3)
+        {
+            Send("ERROR: Formato de SEND_FILE_ROOM incorrecto.");
+            return;
+        }
+
+        string roomName = parts[1].Trim();
+        string fileDataJson = parts[2].Trim();
+
+        // Reenviar FILE_DIRECT a todos los clientes en esa sala
+        foreach (ChatRoom client in clients)
+        {
+            if (client.roomName == roomName)
+            {
+                client.Send("FILE_DIRECT " + fileDataJson);
+            }
+        }
+    }
+
+
 
     // Manejar el comando STATS (ya implementado arriba)
 }
@@ -639,4 +665,3 @@ class InsituChatServer
 }
 
 
-    
