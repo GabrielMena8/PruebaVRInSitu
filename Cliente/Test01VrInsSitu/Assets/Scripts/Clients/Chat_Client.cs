@@ -385,5 +385,6 @@ public class ChatClient : MonoBehaviour
         }
         return data;
     }
+
     #endregion
 }

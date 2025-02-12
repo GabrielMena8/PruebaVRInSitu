@@ -86,175 +86,188 @@ public class AuthManager : MonoBehaviour
 
         mainThreadActions.Enqueue(() =>
         {
-            if (e.Data.StartsWith("LOGIN_SUCCESS"))
+            string data = e.Data;
+            bool handled = false;
+
+            var commandMap = new (string prefix, Action<string> handler)[]
             {
-                string[] responseParts = e.Data.Split(' ');
-                if (responseParts.Length > 1)
-                {
-                    string role = responseParts[1];
-                    Debug.Log($"Login exitoso. Rol: {role}");
-                    PanelManager.Instance.ConfigurePanels(role);
-                    OnLoginSuccess?.Invoke(role);
-                }
-            }
-            else if (e.Data.StartsWith("LOGIN_ERROR"))
+            ("LOGIN_SUCCESS",   HandleLoginSuccess),
+            ("LOGIN_ERROR",     HandleLoginError),
+            ("ROOMS_INFO:",     HandleRoomsInfo),
+            ("CONNECTED_USERS:",HandleConnectedUsers),
+            ("JOINED_ROOM",     HandleJoinedRoom),
+            ("MESSAGE",         HandleMessage),
+            ("OBJECT_DIRECT",   HandleObjectDirect),
+            ("FILE_DIRECT",     HandleFileDirect),
+            ("TYPING",          HandleTyping),
+            ("USER_DISCONNECTED",HandleUserDisconnected),
+            };
+
+            // Buscamos el comando adecuado para manejar el mensaje recibido
+            foreach (var (prefix, action) in commandMap)
             {
-                Debug.Log("Error de inicio de sesión: " + e.Data);
-                OnLoginError?.Invoke(e.Data);
-            }
-            else if (e.Data.StartsWith("ROOMS_INFO:"))
-            {
-                string roomList = e.Data.Substring("ROOMS_INFO:".Length).Trim();
-                Debug.Log("Rooms Info received: " + roomList);
-                PanelManager.Instance.ShowRoomList(roomList);
-            }
-            else if (e.Data.StartsWith("CONNECTED_USERS:"))
-            {
-                string userList = e.Data.Substring("CONNECTED_USERS:".Length).Trim();
-                Debug.Log("Connected Users Info received: " + userList);
-                PanelManager.Instance.ShowConnectedUsers(userList);
-            }
-            else if (e.Data.StartsWith("JOINED_ROOM"))
-            {
-                string joinedRoom = e.Data.Substring("JOINED_ROOM".Length).Trim();
-                Debug.Log("Se ha unido a la sala: " + joinedRoom);
-                PanelManager.Instance.ShowChatPanel(joinedRoom);
-            }
-            else if (e.Data.StartsWith("MESSAGE"))
-            {
-                string receivedMessage = e.Data.Substring("MESSAGE ".Length);
-                Debug.Log("Mensaje de chat: " + receivedMessage);
-
-                if (receivedMessage.Contains("[Sistema]:"))
+                if (data.StartsWith(prefix))
                 {
-                    if (receivedMessage.Contains("se ha unido a la sala"))
-                    {
-                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.green);
-                    }
-                    else if (receivedMessage.Contains("se ha desconectado"))
-                    {
-                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
-                    }
-                    else if (receivedMessage.Contains("ahora está inactivo"))
-                    {
-                        PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.yellow);
-                    }
-                }
-                if (receivedMessage.Contains("ha sido eliminada"))
-                {
-                    PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
-                    PanelManager.Instance.ShowMainMenu();
-                    PanelManager.Instance.CloseChatPanel();
-                }
-                else
-                {
-                    PanelManager.Instance.AppendChatMessage(receivedMessage);
-                }
-            }
-            else if (e.Data.StartsWith("OBJECT_DIRECT"))
-            {
-                string objectEncoded = e.Data.Substring("OBJECT_DIRECT".Length).Trim();
-                if (string.IsNullOrEmpty(objectEncoded))
-                {
-                    Debug.LogError("JSON recibido vacío.");
-                    return;
-                }
-
-                
-
-                // 1) Decodificas Base64:
-                string decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(objectEncoded));
-
-                // 2) Deserializas en tu clase wrapper
-                var wrapper = JsonConvert.DeserializeObject<MessageWrapper<ComplexObjectData>>(decodedJson);
-
-                if (wrapper == null || wrapper.payload == null)
-                {
-                    Debug.LogError("El JSON no tiene payload o wrapper es nulo");
-                    return;
-                }
-
-
-
-                // 3) Extraes ComplexObjectData
-                ComplexObjectData data = wrapper.payload;
-                // data.MeshData ya no estará en null
-               
-
-                // Validar que data.MeshData no sea null
-                if (data.MeshData == null)
-                {
-                    Debug.LogError("Error: MeshData es nulo.");
-                    return;
-                }
-
-                // Instanciar el objeto en la escena (Unity)
-                ObjectManager.Instance.InstantiateComplexObject(data);
-            }
-
-            else if (e.Data.StartsWith("FILE_DIRECT"))
-            {
-                string fileJson = e.Data.Substring("FILE_DIRECT".Length).Trim();
-                FileData fileData = JsonConvert.DeserializeObject<FileData>(fileJson);
-
-                byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
-                string path = Application.persistentDataPath + "/" + fileData.FileName;
-                System.IO.File.WriteAllBytes(path, fileBytes);
-                Debug.Log("Archivo recibido y guardado en: " + path);
-
-                
-
-            }
-
-            else if (e.Data.StartsWith("FILE_DIRECT"))
-            {
-                string fileJson = e.Data.Substring("FILE_DIRECT".Length).Trim();
-                if (string.IsNullOrEmpty(fileJson))
-                {
-                    Debug.LogError("JSON para archivo está vacío.");
-                    return;
-                }
-                try
-                {
-                    FileData fileData = JsonConvert.DeserializeObject<FileData>(fileJson);
-                    if (fileData == null)
-                    {
-                        Debug.LogError("Error: FileData es nulo.");
-                        return;
-                    }
-                    byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
-                    string savePath = Application.persistentDataPath + "/" + fileData.FileName;
-                    System.IO.File.WriteAllBytes(savePath, fileBytes);
-                    Debug.Log($"Archivo recibido y guardado en: {savePath}");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError("Error al procesar archivo: " + ex.Message);
+                    string payload = data.Substring(prefix.Length).Trim();
+                    action(payload);
+                    handled = true;
+                    break;
                 }
             }
 
-
-
-
-
-
-            else if (e.Data.StartsWith("TYPING"))
+            if (!handled)
             {
-                string typingUser = e.Data.Substring("TYPING".Length).Trim();
-                Debug.Log($"{typingUser} está escribiendo...");
-                PanelManager.Instance.ShowTypingIndicator(typingUser);
-            }
-            else if (e.Data.StartsWith("USER_DISCONNECTED"))
-            {
-                string disconnectedUser = e.Data.Substring("USER_DISCONNECTED".Length).Trim();
-                Debug.Log($"{disconnectedUser} se ha desconectado.");
-                ChatClient.Instance.HandleUserDisconnected(disconnectedUser);
-            }
-            else
-            {
-                Debug.Log("Mensaje recibido: " + e.Data);
+                Debug.Log("Mensaje no reconocido: " + e.Data);
             }
         });
+    }
+
+
+    // Métodos de manejo para cada tipo de mensaje:
+
+    private void HandleLoginSuccess(string payload)
+    {
+        string[] responseParts = payload.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (responseParts.Length >= 1)
+        {
+            string role = responseParts[0];
+            Debug.Log($"Login exitoso. Rol: {role}");
+            PanelManager.Instance.ConfigurePanels(role);
+            OnLoginSuccess?.Invoke(role);
+        }
+    }
+
+    private void HandleLoginError(string payload)
+    {
+        Debug.Log("Error de inicio de sesión: " + payload);
+        OnLoginError?.Invoke(payload);
+    }
+
+    private void HandleRoomsInfo(string payload)
+    {
+        string roomList = payload.Trim();
+        Debug.Log("Rooms Info received: " + roomList);
+        PanelManager.Instance.ShowRoomList(roomList);
+    }
+  private void HandleConnectedUsers(string payload)
+    {
+        string userList = payload.Trim();
+        Debug.Log("Usuarios conectados recibidos: " + userList);
+
+        // Actualiza la lista de usuarios conectados en PanelManager
+        PanelManager.Instance.ShowConnectedUsers(userList);  // Aquí se actualiza la lista
+
+    }
+
+  
+
+    private void HandleJoinedRoom(string payload)
+    {
+        string joinedRoom = payload.Trim();
+        Debug.Log("Se ha unido a la sala: " + joinedRoom);
+        PanelManager.Instance.ShowChatPanel(joinedRoom);
+    }
+
+    private void HandleMessage(string payload)
+    {
+        string receivedMessage = payload; // e.Data ya le quitamos "MESSAGE"
+        Debug.Log("Mensaje de chat: " + receivedMessage);
+
+        if (receivedMessage.Contains("[Sistema]:"))
+        {
+            if (receivedMessage.Contains("se ha unido a la sala"))
+            {
+                PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.green);
+            }
+            else if (receivedMessage.Contains("se ha desconectado"))
+            {
+                PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
+            }
+            else if (receivedMessage.Contains("ahora está inactivo"))
+            {
+                PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.yellow);
+            }
+
+            if (receivedMessage.Contains("ha sido eliminada"))
+            {
+                PanelManager.Instance.AppendSystemMessage(receivedMessage, Color.red);
+                PanelManager.Instance.ShowMainMenu();
+                PanelManager.Instance.CloseChatPanel();
+            }
+        }
+        else
+        {
+            PanelManager.Instance.AppendChatMessage(receivedMessage);
+        }
+    }
+
+    private void HandleObjectDirect(string payload)
+    {
+        if (string.IsNullOrEmpty(payload))
+        {
+            Debug.LogError("OBJECT_DIRECT: JSON recibido vacío.");
+            return;
+        }
+
+        string decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+
+        var wrapper = JsonConvert.DeserializeObject<MessageWrapper<ComplexObjectData>>(decodedJson);
+        if (wrapper?.payload == null)
+        {
+            Debug.LogError("El JSON no tiene payload o wrapper es nulo");
+            return;
+        }
+
+        ComplexObjectData data = wrapper.payload;
+        if (data.MeshData == null)
+        {
+            Debug.LogError("Error: MeshData es nulo.");
+            return;
+        }
+
+        ObjectManager.Instance.InstantiateComplexObject(data);
+    }
+
+    private void HandleFileDirect(string payload)
+    {
+        if (string.IsNullOrEmpty(payload))
+        {
+            Debug.LogError("JSON para archivo está vacío.");
+            return;
+        }
+
+        try
+        {
+            FileData fileData = JsonConvert.DeserializeObject<FileData>(payload);
+            if (fileData == null)
+            {
+                Debug.LogError("Error: FileData es nulo.");
+                return;
+            }
+
+            byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
+            string savePath = Application.persistentDataPath + "/" + fileData.FileName;
+            System.IO.File.WriteAllBytes(savePath, fileBytes);
+            Debug.Log($"Archivo recibido y guardado en: {savePath}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Error al procesar archivo: " + ex.Message);
+        }
+    }
+
+    private void HandleTyping(string payload)
+    {
+        string typingUser = payload.Trim();
+        Debug.Log($"{typingUser} está escribiendo...");
+        PanelManager.Instance.ShowTypingIndicator(typingUser);
+    }
+
+    private void HandleUserDisconnected(string payload)
+    {
+        string disconnectedUser = payload.Trim();
+        Debug.Log($"{disconnectedUser} se ha desconectado.");
+        ChatClient.Instance.HandleUserDisconnected(disconnectedUser);
     }
 
     private void ReconnectWebSocket()
@@ -269,7 +282,6 @@ public class AuthManager : MonoBehaviour
         ws.OnOpen += (sender, e) =>
         {
             Debug.Log("Reconexión establecida.");
-            // Opcional: reenviar LOGIN si es necesario
         };
         ws.OnMessage += OnMessageReceived;
         ws.OnClose += (sender, e) =>

@@ -1457,7 +1457,9 @@ MonoBehaviour:
   leftPanel: {fileID: 1467993163}
   rightPanel: {fileID: 1392994818}
   contextMenuPanel: {fileID: 993878499}
+  selectedFilesPanel: {fileID: 0}
   currentConnectedUsernames: []
+  currentSelectedFilePaths: []
 --- !u!114 &1710324751
 MonoBehaviour:
   m_ObjectHideFlags: 0

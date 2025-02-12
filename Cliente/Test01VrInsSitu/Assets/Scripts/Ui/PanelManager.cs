@@ -15,23 +15,17 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject leftPanel;
     [SerializeField] private GameObject rightPanel;
     [SerializeField] private GameObject contextMenuPanel;
-
-    [SerializeField] private GameObject selectedFilesPanel; // Opcional: si lo quieres asignar desde el Inspector
+    [SerializeField] private GameObject selectedFilesPanel;
 
     public List<string> currentConnectedUsernames = new List<string>();
     public List<string> currentSelectedFilePaths = new List<string>();
-    //Lista de los archivos a enviar
 
+    
 
 
     private string currentRole = "user";  // Rol actual: "user" o "admin"
-    private TextMeshProUGUI roomListText;   // Texto para mostrar la lista de salas
+    private TextMeshProUGUI roomListText; // Texto para mostrar la lista de salas
     private Transform chatContent;
-
-
-
-
-    #region Unity Methods
 
     private void Awake()
     {
@@ -47,17 +41,14 @@ public class PanelManager : MonoBehaviour
 
     private void Start()
     {
-        ShowLoginPanel(); // Mostrar el panel de login al inicio
+        ShowLoginPanel();
         ConfigureLoginPanel();
     }
 
-    #endregion
+    /////////////////////////////////////////////////////////
+    // Panel de Inicio de Sesión
+    /////////////////////////////////////////////////////////
 
-    #region Panel Methods
-
-    /// <summary>
-    /// Muestra el panel de inicio de sesión y limpia los paneles de navegación.
-    /// </summary>
     private void ShowLoginPanel()
     {
         loginPanel.SetActive(true);
@@ -66,112 +57,80 @@ public class PanelManager : MonoBehaviour
         rightPanel.SetActive(false);
     }
 
+    private void ConfigureLoginPanel()
+    {
+        ClearPanel(loginPanel);
+        UIUtilities.CreateTitle(loginPanel.transform, "Iniciar Sesión", 24);
+        TMP_InputField usernameInput = UIUtilities.CreateInputField(loginPanel.transform, "Usuario", false, new Vector2(200, 30));
+        TMP_InputField passwordInput = UIUtilities.CreateInputField(loginPanel.transform, "Contraseña", true, new Vector2(200, 30));
+        Login.Instance.usernameInput = usernameInput;
+        Login.Instance.passwordInput = passwordInput;
+        UIUtilities.CreateButton(loginPanel.transform, "Iniciar Sesión", () => Login.Instance.HandleLogin(), new Vector2(200, 50));
+        loginPanel.SetActive(true);
+    }
+
+    /////////////////////////////////////////////////////////
+    // Configuración General de Paneles
+    /////////////////////////////////////////////////////////
+
     public void SetRole(string role)
     {
         currentRole = role;
-        ConfigurePanels(role);  // Llama a la configuración de los paneles
+        ConfigurePanels(role);
     }
 
-    /// <summary>
-    /// Configura los paneles de navegación según el rol del usuario.
-    /// </summary>
-    /// <param name="role">El rol del usuario ("admin" o "user").</param>
     public void ConfigurePanels(string role)
     {
         currentRole = role;
         loginPanel.SetActive(false);
-
         ConfigureFrontPanel();
         ConfigureLeftPanel();
         ConfigureRightPanel();
     }
 
-    private void ConfigureLoginPanel()
-    {
-        ClearPanel(loginPanel);
-        AddTitleToPanel(loginPanel, "Iniciar Sesión");
+    /////////////////////////////////////////////////////////
+    // Panel Frontal (Menú Principal)
+    /////////////////////////////////////////////////////////
 
-        // Crear y asignar los InputFields
-        TMP_InputField usernameInput = AddInputFieldToPanel(loginPanel, "Usuario");
-        TMP_InputField passwordInput = AddInputFieldToPanel(loginPanel, "Contraseña", true);
-
-        // Asignar los InputFields a la clase Login
-        Login.Instance.usernameInput = usernameInput;
-        Login.Instance.passwordInput = passwordInput;
-
-        AddButtonToPanel(loginPanel, "Iniciar Sesión", () => Login.Instance.HandleLogin());
-        loginPanel.SetActive(true);
-    }
-
-    /// <summary>
-    /// Configura el contenido del panel frontal (menú principal).
-    /// </summary>
     private void ConfigureFrontPanel()
     {
         ClearPanel(frontPanel);
 
         if (currentRole == "admin")
         {
-            AddTitleToPanel(frontPanel, "Administrar Salas");
-            AddButtonToPanel(frontPanel, "Crear Sala", ShowCreateRoomInput);
-            AddButtonToPanel(frontPanel, "Ver Salas", HandleViewRooms);
-            AddButtonToPanel(frontPanel, "Eliminar Sala", ShowDeleteRoomInput);
+            UIUtilities.CreateTitle(frontPanel.transform, "Administrar Salas", 24);
+            UIUtilities.CreateButton(frontPanel.transform, "Crear Sala", ShowCreateRoomInput, new Vector2(200, 50));
+            UIUtilities.CreateButton(frontPanel.transform, "Ver Salas", HandleViewRooms, new Vector2(200, 50));
+            UIUtilities.CreateButton(frontPanel.transform, "Eliminar Sala", ShowDeleteRoomInput, new Vector2(200, 50));
         }
         else if (currentRole == "user")
         {
-            AddTitleToPanel(frontPanel, "Salas Disponibles");
-            AddButtonToPanel(frontPanel, "Ver Salas", HandleViewRooms);
-            AddButtonToPanel(frontPanel, "Unirse a Sala", ShowJoinRoomInput);
-            // Se podría agregar un botón para enviar mensajes directamente, pero el chat se maneja en un panel aparte.
+            UIUtilities.CreateTitle(frontPanel.transform, "Salas Disponibles", 24);
+            UIUtilities.CreateButton(frontPanel.transform, "Ver Salas", HandleViewRooms, new Vector2(200, 50));
+            UIUtilities.CreateButton(frontPanel.transform, "Unirse a Sala", ShowJoinRoomInput, new Vector2(200, 50));
         }
 
         frontPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Maneja la solicitud para ver la lista de salas.
-    /// Limpia el panel frontal, muestra un mensaje de "Cargando salas..."
-    /// y solicita la lista al servidor a través de ChatClient.
-    /// </summary>
     private void HandleViewRooms()
     {
-        Debug.Log("Iniciando HandleViewRooms");
         ClearPanel(frontPanel);
-        AddTitleToPanel(frontPanel, "Salas Disponibles");
-
-        // Muestra un mensaje temporal mientras se cargan las salas
-        roomListText = AddTextToPanel(frontPanel, "Cargando salas...");
-
-        // Agrega un botón para volver al menú principal, en caso de ser necesario
-        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
-
-        // Solicitar la lista de salas al servidor
+        UIUtilities.CreateTitle(frontPanel.transform, "Salas Disponibles", 24);
+        roomListText = UIUtilities.CreateText(frontPanel.transform, "Cargando salas...", 18);
+        UIUtilities.CreateButton(frontPanel.transform, "Volver", ConfigureFrontPanel, new Vector2(200, 50));
         ChatClient.Instance.ViewRooms();
     }
 
-
-    /// <summary>
-    /// Muestra el campo de entrada para crear una sala y un botón "Aceptar".
-    /// </summary>
     private void ShowCreateRoomInput()
     {
         ClearPanel(frontPanel);
-        AddTitleToPanel(frontPanel, "Crear Nueva Sala");
-
-        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
-        AddButtonToPanel(frontPanel, "Aceptar", () =>
-        {
-            string roomName = roomNameInput.text;
-            Debug.Log($"Nombre de la sala ingresado: {roomName}");
-            HandleCreateRoom(roomName);
-        });
-        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+        UIUtilities.CreateTitle(frontPanel.transform, "Crear Nueva Sala", 24);
+        TMP_InputField roomNameInput = UIUtilities.CreateInputField(frontPanel.transform, "Nombre de la Sala", false, new Vector2(200, 30));
+        UIUtilities.CreateButton(frontPanel.transform, "Aceptar", () => HandleCreateRoom(roomNameInput.text), new Vector2(200, 50));
+        UIUtilities.CreateButton(frontPanel.transform, "Volver", ConfigureFrontPanel, new Vector2(200, 50));
     }
 
-    /// <summary>
-    /// Maneja la creación de la sala y vuelve al estado normal del panel.
-    /// </summary>
-    /// <param name="roomName">Nombre de la sala</param>
     private void HandleCreateRoom(string roomName)
     {
         if (!string.IsNullOrEmpty(roomName))
@@ -183,310 +142,153 @@ public class PanelManager : MonoBehaviour
         {
             Debug.LogError("El nombre de la sala es nulo o vacío.");
         }
-        ConfigureFrontPanel();  // Volver al estado normal del panel
+        ConfigureFrontPanel();
     }
 
-    /// <summary>
-    /// Muestra el campo de entrada para eliminar una sala y un botón "Aceptar".
-    /// </summary>
     private void ShowDeleteRoomInput()
     {
         ClearPanel(frontPanel);
-        AddTitleToPanel(frontPanel, "Eliminar Sala");
-
-        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
-        AddButtonToPanel(frontPanel, "Aceptar", () => HandleDeleteRoom(roomNameInput.text));
-        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+        UIUtilities.CreateTitle(frontPanel.transform, "Eliminar Sala", 24);
+        TMP_InputField roomNameInput = UIUtilities.CreateInputField(frontPanel.transform, "Nombre de la Sala", false, new Vector2(200, 30));
+        UIUtilities.CreateButton(frontPanel.transform, "Aceptar", () => HandleDeleteRoom(roomNameInput.text), new Vector2(200, 50));
+        UIUtilities.CreateButton(frontPanel.transform, "Volver", ConfigureFrontPanel, new Vector2(200, 50));
     }
 
-    /// <summary>
-    /// Maneja la eliminación de la sala y vuelve al estado normal del panel.
-    /// </summary>
-    /// <param name="roomName">Nombre de la sala</param>
     private void HandleDeleteRoom(string roomName)
     {
         if (!string.IsNullOrEmpty(roomName))
         {
             ChatClient.Instance.DeleteRoom(roomName);
         }
-        ConfigureFrontPanel();  // Volver al estado normal del panel
+        ConfigureFrontPanel();
     }
 
-    /// <summary>
-    /// Muestra el campo de entrada para unirse a una sala y un botón "Aceptar".
-    /// </summary>
     private void ShowJoinRoomInput()
     {
         ClearPanel(frontPanel);
-        AddTitleToPanel(frontPanel, "Unirse a Sala");
-
-        TMP_InputField roomNameInput = AddInputFieldToPanel(frontPanel, "Nombre de la Sala");
-        AddButtonToPanel(frontPanel, "Aceptar", () =>
-        {
-            string roomName = roomNameInput.text;
-            if (!string.IsNullOrEmpty(roomName))
-            {
-                Debug.Log($"Intentando unirse a la sala: {roomName}");
-                ChatClient.Instance.JoinRoom(roomName);
-                // No se vuelve inmediatamente al menú; se espera la respuesta del servidor para mostrar el chat.
-            }
-            else
-            {
-                Debug.LogError("El nombre de la sala es nulo o vacío.");
-            }
-        });
-        AddButtonToPanel(frontPanel, "Volver", ConfigureFrontPanel);
+        UIUtilities.CreateTitle(frontPanel.transform, "Unirse a Sala", 24);
+        TMP_InputField roomNameInput = UIUtilities.CreateInputField(frontPanel.transform, "Nombre de la Sala", false, new Vector2(200, 30));
+        UIUtilities.CreateButton(frontPanel.transform, "Aceptar", () => HandleJoinRoom(roomNameInput.text), new Vector2(200, 50));
+        UIUtilities.CreateButton(frontPanel.transform, "Volver", ConfigureFrontPanel, new Vector2(200, 50));
     }
 
-
-    /// <summary>
-    /// Método para mostrar el menú contextual reutilizando un panel ya existente.
-    /// Se asume que "contextMenuPanel" ya está asignado en el Inspector.
-    /// </summary>
-    /// <param name="users">Lista de nombres de usuarios conectados</param>
-    /// <param name="onUserSelected">Callback al seleccionar un usuario</param>
-    /// <param name="position">Posición en pantalla donde se mostrará el menú</param>
-    /// <summary>
-    /// Muestra el menú contextual en el Canvas en la posición convertida, con la componente Z deseada.
-    /// </summary>
-    /// <param name="users">Lista de nombres de usuarios conectados</param>
-    /// <param name="onUserSelected">Callback al seleccionar un usuario</param>
-    /// <param name="screenPosition">Posición en pantalla (obtenida, por ejemplo, de WorldToScreenPoint)</param>
-    /// <param name="desiredZ">Valor Z deseado para la posición local del menú</param>
-    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ)
+    private void HandleJoinRoom(string roomName)
     {
-        if (contextMenuPanel == null)
+        if (!string.IsNullOrEmpty(roomName))
         {
-            Debug.LogError("contextMenuPanel no está asignado en PanelManager.");
-            return;
-        }
-
-        // Limpia el contenido anterior del panel
-        ClearPanel(contextMenuPanel);
-
-        // Obtener el Canvas en el que se encuentra el panel contextual
-        Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
-        if (canvas == null)
-        {
-            Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
-            return;
-        }
-        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
-        // Convertir la posición de pantalla al sistema local del Canvas
-        Vector2 localPoint;
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                canvasRect,
-                screenPosition,
-                canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
-                out localPoint))
-        {
-            RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
-            // Asigna las coordenadas X e Y obtenidas y la componente Z deseada
-            rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
+            Debug.Log($"Intentando unirse a la sala: {roomName}");
+            ChatClient.Instance.JoinRoom(roomName);
         }
         else
         {
-            Debug.LogWarning("No se pudo convertir la posición de pantalla a local.");
-        }
-
-        contextMenuPanel.SetActive(true);
-
-        // Genera un botón para cada usuario
-        foreach (string user in users)
-        {
-            AddButtonToPanel(contextMenuPanel, user, () => { onUserSelected(user); HideContextMenu(); });
+            Debug.LogError("El nombre de la sala es nulo o vacío.");
         }
     }
 
-    /// <summary>
-    /// Oculta el menú contextual.
-    /// </summary>
-    public void HideContextMenu()
-    {
-        if (contextMenuPanel != null)
-        {
-            contextMenuPanel.SetActive(false);
-        }
-    }
+    /////////////////////////////////////////////////////////
+    // Panel Izquierdo / Derecho
+    /////////////////////////////////////////////////////////
 
-
-
-    /// <summary>
-    /// Muestra la lista de salas en el panel frontal.
-    /// </summary>
-    /// <param name="roomList">Lista de salas</param>
-    public void ShowRoomList(string roomList)
-    {
-        Debug.Log("ShowRoomList llamado");
-        if (roomListText != null)
-        {
-            Debug.Log("Actualizando roomListText");
-            roomListText.text = "Salas disponibles:\n" + roomList;
-        }
-        else
-        {
-            roomListText = AddTextToPanel(frontPanel, "Salas disponibles:\n" + roomList);
-        }
-    }
-
-    /// <summary>
-    /// Configura el contenido del panel izquierdo.
-    /// </summary>
     private void ConfigureLeftPanel()
     {
         ClearPanel(leftPanel);
-
-        AddTitleToPanel(leftPanel, "Cerrar Sesión");
-        AddButtonToPanel(leftPanel, "Cerrar Sesión", () => HandleLogout());
-
+        UIUtilities.CreateTitle(leftPanel.transform, "Cerrar Sesión", 24);
+        UIUtilities.CreateButton(leftPanel.transform, "Cerrar Sesión", HandleLogout, new Vector2(200, 50));
         leftPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Configura el contenido del panel derecho.
-    /// </summary>
     private void ConfigureRightPanel()
     {
         ClearPanel(rightPanel);
-
         if (currentRole == "admin")
         {
-            AddTitleToPanel(rightPanel, "Opciones de Admin");
-            AddButtonToPanel(rightPanel, "Ver Conectados", HandleViewConnectedUsers);
-            AddButtonToPanel(rightPanel, "Cerrar Servidor", () => Debug.Log("Cerrar Servidor"));
+            UIUtilities.CreateTitle(rightPanel.transform, "Opciones de Admin", 24);
+            UIUtilities.CreateButton(rightPanel.transform, "Ver Conectados", HandleViewConnectedUsers, new Vector2(200, 50));
+            UIUtilities.CreateButton(rightPanel.transform, "Cerrar Servidor", () => Debug.Log("Cerrar Servidor"), new Vector2(200, 50));
         }
         else if (currentRole == "user")
         {
-            AddTitleToPanel(rightPanel, "Objetos Recibidos");
-            AddButtonToPanel(rightPanel, "Ver Objetos", HandleViewReceivedItems);
+            UIUtilities.CreateTitle(rightPanel.transform, "Objetos Recibidos", 24);
+            UIUtilities.CreateButton(rightPanel.transform, "Ver Objetos", HandleViewReceivedItems, new Vector2(200, 50));
         }
-
         rightPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Maneja la visualización de los usuarios conectados y muestra un botón "Volver".
-    /// </summary>
-    public void HandleViewConnectedUsers()
+    private void HandleViewConnectedUsers()
     {
         ClearPanel(rightPanel);
-        AddTitleToPanel(rightPanel, "Usuarios Conectados");
-
-        roomListText = AddTextToPanel(rightPanel, "Cargando usuarios...");
-        AddButtonToPanel(rightPanel, "Volver", ConfigureRightPanel);
-
-        // Solicitar la lista de usuarios conectados al servidor
+        UIUtilities.CreateTitle(rightPanel.transform, "Usuarios Conectados", 24);
+        roomListText = UIUtilities.CreateText(rightPanel.transform, "Cargando usuarios...", 18);
+        UIUtilities.CreateButton(rightPanel.transform, "Volver", ConfigureRightPanel, new Vector2(200, 50));
         ChatClient.Instance.ViewConnectedUsers();
     }
 
-    /// <summary>
-    /// Maneja la visualización de los objetos recibidos y muestra un botón "Volver".
-    /// </summary>
     private void HandleViewReceivedItems()
     {
         ClearPanel(rightPanel);
-        AddTitleToPanel(rightPanel, "Objetos Recibidos");
-
-        roomListText = AddTextToPanel(rightPanel, "Cargando objetos...");
-        AddButtonToPanel(rightPanel, "Volver", ConfigureRightPanel);
-
+        UIUtilities.CreateTitle(rightPanel.transform, "Objetos Recibidos", 24);
+        roomListText = UIUtilities.CreateText(rightPanel.transform, "Cargando objetos...", 18);
+        UIUtilities.CreateButton(rightPanel.transform, "Volver", ConfigureRightPanel, new Vector2(200, 50));
         // Aquí puedes manejar la lógica para mostrar los objetos recibidos
     }
 
-    /// <summary>
-    /// Maneja el proceso de cierre de sesión.
-    /// </summary>
     private void HandleLogout()
     {
         Debug.Log("Cerrando sesión...");
         ShowLoginPanel();
     }
 
-    #endregion
+    /////////////////////////////////////////////////////////
+    // Mostrar Listas de Salas y Usuarios
+    /////////////////////////////////////////////////////////
 
-    #region Métodos para el Chat
+    public void ShowRoomList(string roomList)
+    {
+        if (roomListText != null)
+        {
+            roomListText.text = "Salas disponibles:\n" + roomList;
+        }
+        else
+        {
+            roomListText = UIUtilities.CreateText(frontPanel.transform, "Salas disponibles:\n" + roomList, 18, TMPro.TextAlignmentOptions.Left);
+        }
+        Debug.Log("Lista de salas mostrada correctamente.");
+    }
 
-    /// <summary>
-    /// Muestra dinámicamente un panel de chat para la sala a la que se ha unido.
-    /// Este método es llamado desde el ChatClient cuando se recibe la respuesta "JOINED_ROOM".
-    /// </summary>
-    /// <param name="roomName">Nombre de la sala a la que se ha unido</param>
-    /// 
-    /// <summary>
-    /// Muestra dinámicamente un panel de chat para la sala a la que se ha unido.
-    /// </summary>
-    /// <param name="roomName">Nombre de la sala a la que se ha unido</param>
+
+    /////////////////////////////////////////////////////////
+    // Chat y Mensajes
+    /////////////////////////////////////////////////////////
+
     public void ShowChatPanel(string roomName)
     {
-        // Ocultar los paneles de menú
+        // Ocultar paneles no relevantes
         loginPanel.SetActive(false);
         frontPanel.SetActive(false);
         leftPanel.SetActive(false);
         rightPanel.SetActive(false);
 
-        // Clonar el frontPanel para usarlo como base para el chatPanel
+        // Crear el panel de chat
         GameObject chatPanel = Instantiate(frontPanel, frontPanel.transform.parent);
         chatPanel.name = "ChatPanel";
-        ClearPanel(chatPanel); // Limpiar los hijos existentes
+        ClearPanel(chatPanel);
 
-        // Añadir título al panel de chat
-        UIUtilities.CreateTitle(chatPanel.transform, "Chat - Sala: " + roomName);
+        // Crear el título
+        UIUtilities.CreateTitle(chatPanel.transform, "Chat - Sala: " + roomName, 24);
 
-        // --- Crear el ScrollView para el historial de mensajes ---
-        GameObject scrollViewObject = new GameObject("ScrollView",
-            typeof(RectTransform), typeof(ScrollRect), typeof(Image), typeof(Mask));
-        scrollViewObject.transform.SetParent(chatPanel.transform, false);
-        RectTransform scrollRectTransform = scrollViewObject.GetComponent<RectTransform>();
-        scrollRectTransform.anchorMin = new Vector2(0.05f, 0.3f);
-        scrollRectTransform.anchorMax = new Vector2(0.95f, 0.85f);
-        scrollRectTransform.offsetMin = Vector2.zero;
-        scrollRectTransform.offsetMax = Vector2.zero;
-        scrollRectTransform.sizeDelta = new Vector2(400, 100);
+        // Crear ScrollView con un layout vertical para el historial de mensajes
+        Transform scrollContent = UIUtilities.CreateScrollViewWithVerticalLayout(
+            parent: chatPanel.transform,
+            scrollViewName: "ChatScrollView"
+        // size: new Vector2(0, 0) // se ajusta, o si prefieres un size fijo, p.ej. new Vector2(400, 300)
+        );
 
-        // Configurar ScrollRect
-        ScrollRect scrollRect = scrollViewObject.GetComponent<ScrollRect>();
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
+        // Guardamos ese contenedor en chatContent para poder agregar mensajes
+        chatContent = scrollContent;
 
-        // Configurar la imagen de fondo y la máscara
-        Image scrollViewImage = scrollViewObject.GetComponent<Image>();
-        scrollViewImage.color = new Color(1, 1, 1, 0.5f);
-        Mask mask = scrollViewObject.GetComponent<Mask>();
-        mask.showMaskGraphic = false;
-
-        // --- Crear el contenedor (Content) para los mensajes ---
-        GameObject content = new GameObject("Content", typeof(RectTransform));
-        content.transform.SetParent(scrollViewObject.transform, false);
-        RectTransform contentRect = content.GetComponent<RectTransform>();
-        contentRect.anchorMin = new Vector2(0, 1);
-        contentRect.anchorMax = new Vector2(1, 1);
-        contentRect.pivot = new Vector2(0.5f, 1);
-        contentRect.sizeDelta = new Vector2(0, 0);
-
-        // Añadir un VerticalLayoutGroup y ContentSizeFitter para organizar los mensajes
-        VerticalLayoutGroup layoutGroup = content.AddComponent<VerticalLayoutGroup>();
-        layoutGroup.childControlWidth = true;
-        layoutGroup.childForceExpandWidth = true;
-        layoutGroup.childControlHeight = true;
-        layoutGroup.childForceExpandHeight = false;
-        layoutGroup.spacing = 5;
-
-        ContentSizeFitter sizeFitter = content.AddComponent<ContentSizeFitter>();
-        sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        scrollRect.content = contentRect;
-        chatContent = content.transform; // Guardar la referencia para agregar mensajes
-
-        // --- Crear el InputField para escribir mensajes ---
-        TMP_InputField chatInput = UIUtilities.CreateInputField(chatPanel.transform, "Escribe tu mensaje...");
-        RectTransform inputRect = chatInput.GetComponent<RectTransform>();
-        inputRect.anchorMin = new Vector2(0.05f, 0.05f);
-        inputRect.anchorMax = new Vector2(0.75f, 0.15f);
-        inputRect.offsetMin = Vector2.zero;
-        inputRect.offsetMax = Vector2.zero;
-        // Escuchar el cambio de texto para enviar estado "TYPING"
-        chatInput.onValueChanged.AddListener((text) =>
+        // Crear el InputField para mensajes
+        TMP_InputField chatInput = UIUtilities.CreateInputField(chatPanel.transform, "Escribe tu mensaje...", false, new Vector2(400, 40));
+        chatInput.onValueChanged.AddListener((string text) =>
         {
             if (!string.IsNullOrEmpty(text))
             {
@@ -494,191 +296,65 @@ public class PanelManager : MonoBehaviour
             }
         });
 
-        // --- Botón "Adjuntar": abre el diálogo para seleccionar archivos ---
-        Button attachButton = UIUtilities.CreateButton(chatPanel.transform, "Adjuntar", () =>
-        {
-            // Define filtros si lo deseas
-            var extensions = new[] {
-            new ExtensionFilter("Archivos", "txt", "pdf", "doc", "docx", "png", "jpg", "jpeg", "gif", "mp4", "mp3", "wav", "zip", "rar")
-        };
-            // Abrir diálogo con selección múltiple
-            var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivo", "", extensions, true);
-            if (paths.Length > 0)
-            {
-                // Aquí puedes enviar inmediatamente o almacenar en una lista para luego enviar
-                // Por ejemplo, enviamos a la sala:
-                ChatClient.Instance.SendFilesToRoom( new List<string>(paths));
-            }
-            else
-            {
-                Debug.Log("El usuario canceló la selección de archivos.");
-            }
-        }, new Vector2(200, 50));
-        RectTransform attachRect = attachButton.GetComponent<RectTransform>();
-        attachRect.anchorMin = new Vector2(0.55f, 0.05f);
-        attachRect.anchorMax = new Vector2(0.75f, 0.15f);
-        attachRect.offsetMin = Vector2.zero;
-        attachRect.offsetMax = Vector2.zero;
+        RectTransform inputRect = chatInput.GetComponent<RectTransform>();
+        inputRect.anchorMin = new Vector2(0.05f, 0.05f);
+        inputRect.anchorMax = new Vector2(0.75f, 0.15f);
+        inputRect.offsetMin = Vector2.zero;
+        inputRect.offsetMax = Vector2.zero;
 
-        // --- Botón "Enviar" para mensajes ---
-        Button sendButton = UIUtilities.CreateButton(chatPanel.transform, "Enviar", () =>
-        {
-            string msg = chatInput.text;
-            if (!string.IsNullOrEmpty(msg))
+        // Botón "Adjuntar"
+        UIUtilities.CreateButton(
+            chatPanel.transform,
+            "Adjuntar",
+            () =>
             {
-                ChatClient.Instance.SendMessageToRoom(msg);
-                chatInput.text = "";
-            }
-        }, new Vector2(200, 50));
-        RectTransform sendRect = sendButton.GetComponent<RectTransform>();
-        sendRect.anchorMin = new Vector2(0.8f, 0.05f);
-        sendRect.anchorMax = new Vector2(0.95f, 0.15f);
-        sendRect.offsetMin = Vector2.zero;
-        sendRect.offsetMax = Vector2.zero;
+                var extensions = new[] {
+                new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
+                };
+                var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivo", "", extensions, true);
+                if (paths.Length > 0)
+                {
+                    currentSelectedFilePaths.Clear();
+                    currentSelectedFilePaths.AddRange(paths);
+                    Debug.Log("Archivos seleccionados: " + string.Join(", ", paths));
+                }
+            },
+            new Vector2(100, 40)
+        );
 
-        // --- Botón "Volver" ---
-        Button backButton = UIUtilities.CreateButton(chatPanel.transform, "Volver", () =>
-        {
-            Destroy(chatPanel);
-            ConfigurePanels(currentRole);
-        }, new Vector2(200, 50));
-        RectTransform backRect = backButton.GetComponent<RectTransform>();
-        backRect.anchorMin = new Vector2(0.05f, 0.05f);
-        backRect.anchorMax = new Vector2(0.3f, 0.15f);
-        backRect.offsetMin = Vector2.zero;
-        backRect.offsetMax = Vector2.zero;
+        // Botón "Enviar"
+        UIUtilities.CreateButton(
+            chatPanel.transform,
+            "Enviar",
+            () =>
+            {
+                string message = chatInput.text;
+                if (!string.IsNullOrEmpty(message))
+                {
+                    ChatClient.Instance.SendMessageToRoom(message);
+                   
+                    
+        
+                }
+            },
+            new Vector2(100, 40)
+        );
 
-        // Mostrar el chatPanel
+        // Botón "Volver"
+        UIUtilities.CreateButton(
+            chatPanel.transform,
+            "Volver",
+            () =>
+            {
+                Destroy(chatPanel);
+                ConfigurePanels(currentRole);
+            },
+            new Vector2(100, 40)
+        );
+
+        // Mostrar el panel de chat
         chatPanel.SetActive(true);
     }
-
-    //Actualizacion de ui
-
-    public void UpdateSelectedFilesPanel(List<string> filePaths)
-    {
-        // Asegúrate de tener la instancia del panel
-        GameObject panel = CreateSelectedFilesPanel();
-
-        // Limpiar su contenido (excepto la estructura base, si la necesitas)
-        foreach (Transform child in panel.transform)
-        {
-            Destroy(child.gameObject);
-        }
-
-        // Agregar un título (opcional)
-        AddTitleToPanel(panel, "Archivos Seleccionados");
-
-        // Por cada archivo seleccionado, agregar una entrada
-        foreach (string filePath in filePaths)
-        {
-            GameObject fileEntry = new GameObject("FileEntry", typeof(RectTransform));
-            fileEntry.transform.SetParent(panel.transform, false);
-
-            // Texto que muestra el nombre del archivo
-            GameObject textObj = new GameObject("FileName");
-            textObj.transform.SetParent(fileEntry.transform, false);
-            TextMeshProUGUI fileNameText = textObj.AddComponent<TextMeshProUGUI>();
-            fileNameText.text = System.IO.Path.GetFileName(filePath);
-            fileNameText.fontSize = 16;
-            fileNameText.alignment = TextAlignmentOptions.Left;
-
-            // Botón para eliminar este archivo de la lista
-            GameObject removeButtonObj = new GameObject("RemoveButton", typeof(RectTransform));
-            removeButtonObj.transform.SetParent(fileEntry.transform, false);
-            Button removeButton = removeButtonObj.AddComponent<Button>();
-            TextMeshProUGUI removeButtonText = removeButtonObj.AddComponent<TextMeshProUGUI>();
-            removeButtonText.text = "X";
-            removeButtonText.fontSize = 16;
-            removeButtonText.alignment = TextAlignmentOptions.Center;
-
-            removeButton.onClick.AddListener(() =>
-            {
-                filePaths.Remove(filePath);
-                UpdateSelectedFilesPanel(filePaths);
-            });
-
-            // Aquí puedes ajustar posiciones y tamaños usando RectTransform según tus necesidades
-        }
-
-        // Si hay archivos, agregar un botón para enviar todos
-        if (filePaths.Count > 0)
-        {
-            GameObject sendAllButton = new GameObject("EnviarArchivos", typeof(RectTransform));
-            sendAllButton.transform.SetParent(panel.transform, false);
-            Button sendAllBtn = sendAllButton.AddComponent<Button>();
-            TextMeshProUGUI btnText = sendAllButton.AddComponent<TextMeshProUGUI>();
-            btnText.text = "Enviar Archivos";
-            btnText.fontSize = 18;
-            btnText.alignment = TextAlignmentOptions.Center;
-            sendAllBtn.onClick.AddListener(() =>
-            {
-                // Llama al método en ChatClient para enviar todos los archivos de la lista
-                ChatClient.Instance.SendFilesToRoom(filePaths);
-                // Limpia la lista después de enviar
-                filePaths.Clear();
-                UpdateSelectedFilesPanel(filePaths);
-            });
-        }
-    }
-
-
-
-    // Método para crear (o actualizar) el panel de archivos seleccionados
-    public GameObject CreateSelectedFilesPanel()
-    {
-        GameObject panel;
-        // Si ya existe una instancia asignada en selectedFilesPanel, la usamos; de lo contrario, la instanciamos.
-        if (selectedFilesPanel == null)
-        {
-            // Instanciamos una copia del frontPanel como base.
-            panel = Instantiate(frontPanel, frontPanel.transform.parent);
-            panel.name = "SelectedFilesPanel";
-        }
-        else
-        {
-            panel = selectedFilesPanel;
-            ClearPanel(panel);
-        }
-
-        // Reposicionar y rotar el panel para que se muestre a la derecha en un ángulo:
-        RectTransform rt = panel.GetComponent<RectTransform>();
-        // Configura los anclajes para que esté en el borde derecho del Canvas
-        rt.anchorMin = new Vector2(1, 0.5f);
-        rt.anchorMax = new Vector2(1, 0.5f);
-        rt.pivot = new Vector2(1, 0.5f);
-        // Ajusta la posición para que no quede pegado al borde; por ejemplo, 50 unidades hacia adentro
-        rt.anchoredPosition = new Vector2(-50, 0);
-        // Rotar 10° (o el ángulo que prefieras)
-        rt.localRotation = Quaternion.Euler(0, 0, -10);
-
-        // (Opcional) Agregar un título para identificar el panel
-        AddTitleToPanel(panel, "Archivos Seleccionados");
-
-        // Asegúrate de que el panel esté activo
-        panel.SetActive(true);
-
-        // Guarda la referencia para usarla luego si lo deseas
-        selectedFilesPanel = panel;
-
-        return panel;
-    }
-
-    public void CloseChatPanel()
-    {
-        GameObject chatPanel = GameObject.Find("ChatPanel");
-        if (chatPanel != null)
-        {
-            Destroy(chatPanel);  // Destruye el panel de chat para evitar que quede activo
-        }
-    }
-
-    public void ShowMainMenu()
-    {
-        ClearPanel(frontPanel);
-        ConfigureFrontPanel();  // Configura nuevamente el panel frontal para mostrar el menú principal
-        Debug.Log("Regresando al menú principal después de la eliminación de la sala.");
-    }
-
 
 
     public void AppendSystemMessage(string message, Color messageColor)
@@ -688,40 +364,10 @@ public class PanelManager : MonoBehaviour
             Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
             return;
         }
-
-        GameObject messageObject = new GameObject("SystemMessage", typeof(RectTransform));
-        messageObject.transform.SetParent(chatContent, false);
-
-        TextMeshProUGUI messageText = messageObject.AddComponent<TextMeshProUGUI>();
-        messageText.text = message;
-        messageText.fontSize = 18;
-        messageText.alignment = TextAlignmentOptions.Left;
-        messageText.color = messageColor;  // Color específico para el mensaje
-
-        ContentSizeFitter csf = messageObject.AddComponent<ContentSizeFitter>();
-        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent as RectTransform);
+        // Mensaje de sistema con word wrapping activado
+        UIUtilities.CreateChatMessage(chatContent, "SystemMessage", message, messageColor, 18, TMPro.TextAlignmentOptions.Left, true);
     }
 
-
-    /// <summary>
-    /// Muestra un indicador de que un usuario está escribiendo.
-    /// </summary>
-    /// <param name="userName">El nombre del usuario que está escribiendo</param>
-    public void ShowTypingIndicator(string userName)
-    {
-        // Simplemente se añade un mensaje informativo al historial
-        AppendChatMessage($"{userName} está escribiendo...");
-    }
-
-    /// <summary>
-    /// Agrega un mensaje al historial del chat.
-    /// Cada mensaje se crea como un GameObject hijo del contenedor 'chatContent'
-    /// que ya cuenta con un VerticalLayoutGroup para organizar los mensajes.
-    /// </summary>
-    /// <param name="message">Mensaje a agregar</param>
     public void AppendChatMessage(string message)
     {
         if (chatContent == null)
@@ -729,36 +375,182 @@ public class PanelManager : MonoBehaviour
             Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
             return;
         }
-
-        // Crear un nuevo GameObject para el mensaje
-        GameObject messageObject = new GameObject("Message", typeof(RectTransform));
-        messageObject.transform.SetParent(chatContent, false);
-
-        // Añadir y configurar el componente TextMeshProUGUI para mostrar el mensaje
-        TextMeshProUGUI messageText = messageObject.AddComponent<TextMeshProUGUI>();
-        messageText.text = message;
-        messageText.fontSize = 18;
-        messageText.alignment = TextAlignmentOptions.Left;
-        messageText.textWrappingMode = TextWrappingModes.NoWrap;
-
-        // Agregar un ContentSizeFitter para que la altura se ajuste al contenido del mensaje
-        ContentSizeFitter csf = messageObject.AddComponent<ContentSizeFitter>();
-        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        // Opcional: forzar la actualización del layout para que se vea inmediatamente
-        LayoutRebuilder.ForceRebuildLayoutImmediate(chatContent as RectTransform);
+        UIUtilities.CreateChatMessage(chatContent, "Message", message, Color.black, 18, TMPro.TextAlignmentOptions.Left, true);
     }
 
-    // Dentro de PanelManager.cs, por ejemplo, en la sección de Utility Methods o donde tengas definidos otros métodos similares.
+    public void ShowTypingIndicator(string userName)
+    {
+        AppendChatMessage($"{userName} está escribiendo...");
+    }
+
+    public void CloseChatPanel()
+    {
+        GameObject chatPanel = GameObject.Find("ChatPanel");
+        if (chatPanel != null)
+        {
+            Destroy(chatPanel);
+        }
+    }
+
+    public void ShowMainMenu()
+    {
+        ClearPanel(frontPanel);
+        ConfigureFrontPanel();
+        Debug.Log("Regresando al menú principal después de la eliminación de la sala.");
+    }
+
+
+    public void UpdateConnectedUsers(string userList)
+    {
+        // Convertir el string de usuarios a una lista
+        currentConnectedUsernames = new List<string>(userList.Split(','));
+        Debug.Log("Usuarios conectados actualizados: " + string.Join(", ", currentConnectedUsernames));
+    }
+
+    /////////////////////////////////////////////////////////
+    // Manejo de Archivos Seleccionados
+    /////////////////////////////////////////////////////////
+
+    public void UpdateSelectedFilesPanel(List<string> filePaths)
+    {
+        GameObject panel = CreateSelectedFilesPanel();
+        foreach (Transform child in panel.transform)
+        {
+            Destroy(child.gameObject);
+        }
+        UIUtilities.CreateTitle(panel.transform, "Archivos Seleccionados", 24);
+
+        foreach (string filePath in filePaths)
+        {
+            GameObject fileEntry = new GameObject("FileEntry");
+            fileEntry.transform.SetParent(panel.transform, false);
+
+            var fileTextObj = UIUtilities.CreateText(fileEntry.transform, System.IO.Path.GetFileName(filePath), 16, TMPro.TextAlignmentOptions.Left);
+            fileTextObj.color = Color.black;
+
+            UIUtilities.CreateButton(fileEntry.transform, "X", () => RemoveFile(filePath, filePaths), new Vector2(30, 30));
+        }
+    }
+
+    private void RemoveFile(string filePath, List<string> filePaths)
+    {
+        if (filePaths.Contains(filePath))
+        {
+            filePaths.Remove(filePath);
+            UpdateSelectedFilesPanel(filePaths);
+        }
+    }
+
+    public GameObject CreateSelectedFilesPanel()
+    {
+        GameObject panel;
+        if (selectedFilesPanel == null)
+        {
+            panel = Instantiate(frontPanel, frontPanel.transform.parent);
+            panel.name = "SelectedFilesPanel";
+            selectedFilesPanel = panel;
+        }
+        else
+        {
+            panel = selectedFilesPanel;
+        }
+
+        ClearPanel(panel);
+
+        RectTransform rt = panel.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.localPosition = new Vector3(11f, -12.2f, 104.4f);
+        rt.localRotation = Quaternion.Euler(0, 45, 0);
+
+        panel.SetActive(true);
+        return panel;
+    }
+
+    /////////////////////////////////////////////////////////
+    // Manejo de Usuarios Conectados / Context Menu
+    /////////////////////////////////////////////////////////
+
+    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ)
+    {
+        if (contextMenuPanel == null)
+        {
+            Debug.LogError("contextMenuPanel no está asignado en PanelManager.");
+            return;
+        }
+
+        ClearPanel(contextMenuPanel);
+        Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
+            return;
+        }
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+        // Convertir la posición de pantalla a local
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvasRect,
+                screenPosition,
+                canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
+                out Vector2 localPoint))
+        {
+            RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
+            rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
+        }
+
+        // Verificar si hay usuarios antes de mostrar el menú
+        if (users != null && users.Count > 0)
+        {
+
+            Debug.Log("Mostrando menú contextual con usuarios: " + string.Join(", ", users));
+
+            foreach (string user in users)
+            {
+                UIUtilities.CreateButton(
+                    contextMenuPanel.transform,
+                    user,
+                    () => {onUserSelected(user); HideContextMenu(); },
+                    new Vector2(200, 50)
+                );
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No hay usuarios para mostrar en el menú contextual.");
+        }
+
+        contextMenuPanel.SetActive(true);
+    }
+
+
+    public void HideContextMenu()
+    {
+        if (contextMenuPanel != null)
+        {
+            contextMenuPanel.SetActive(false);
+        }
+    }
+
+    public List<string> GetConnectedUsernames()
+    {
+        return new List<string>(currentConnectedUsernames);
+    }
+
+
+    public void RemoveUserFromUI(string username)
+    {
+        Debug.Log($"Eliminando a {username} de la UI.");
+        if (roomListText != null)
+        {
+            string[] users = roomListText.text.Split('\n');
+            roomListText.text = string.Join("\n", users.Where(user => !user.Contains(username)).ToArray());
+        }
+    }
 
 
 
-    /// <summary>
-    /// Actualiza la UI y la lista interna de usuarios conectados a partir de la cadena recibida.
-    /// Se espera el formato: 
-    /// "Sala: a - Usuarios Activos: asd (Active)"
-    /// </summary>
     public void ShowConnectedUsers(string userList)
     {
         Debug.Log($"ShowConnectedUsers: Cadena recibida: '{userList}'");
@@ -781,13 +573,16 @@ public class PanelManager : MonoBehaviour
             {
                 // Se espera que listPart sea, por ejemplo: "asd (Active)" o "asd (Active), bob (Active)"
                 string[] entries = listPart.Split(',');
+
                 foreach (string entry in entries)
                 {
                     string trimmed = entry.Trim();
                     // Suponemos que el nombre es la primera palabra antes del primer espacio
                     int spaceIndex = trimmed.IndexOf(' ');
                     string username = (spaceIndex > 0) ? trimmed.Substring(0, spaceIndex) : trimmed;
-                    if (!string.IsNullOrEmpty(username))
+
+                    // Agregamos solo si el nombre no está vacío y no tiene caracteres extraños
+                    if (!string.IsNullOrEmpty(username) && !currentConnectedUsernames.Contains(username))
                     {
                         currentConnectedUsernames.Add(username);
                     }
@@ -800,38 +595,15 @@ public class PanelManager : MonoBehaviour
             currentConnectedUsernames.Clear();
         }
 
-        // Actualiza la UI en el panel derecho (puedes ajustar esto según tu diseño)
-        if (roomListText != null)
-        {
-            roomListText.text = userList;
-        }
-        else
-        {
-            roomListText = AddTextToPanel(rightPanel, userList);
-        }
-
-        // Muestra en la consola la lista actualizada para verificar:
-        Debug.Log("Usuarios conectados actualizados: " + string.Join(", ", currentConnectedUsernames));
-    }
-
-    /// <summary>
-    /// Devuelve una copia de la lista interna de usuarios conectados.
-    /// </summary>
-    public List<string> GetConnectedUsernames()
-    {
-        return new List<string>(currentConnectedUsernames);
+        // Ver la lista final de usuarios
+        Debug.Log("Usuarios conectados: " + string.Join(", ", currentConnectedUsernames));
     }
 
 
+    /////////////////////////////////////////////////////////
+    // Utility
+    /////////////////////////////////////////////////////////
 
-    #endregion
-
-    #region Utility Methods
-
-    /// <summary>
-    /// Limpia el contenido de un panel específico.
-    /// </summary>
-    /// <param name="panel">El panel a limpiar.</param>
     private void ClearPanel(GameObject panel)
     {
         foreach (Transform child in panel.transform)
@@ -839,146 +611,4 @@ public class PanelManager : MonoBehaviour
             Destroy(child.gameObject);
         }
     }
-
-    /// <summary>
-    /// Añade un título a un panel.
-    /// </summary>
-    /// <param name="panel">El panel donde añadir el título.</param>
-    /// <param name="titleText">El texto del título.</param>
-    private void AddTitleToPanel(GameObject panel, string titleText)
-    {
-        GameObject titleObject = new GameObject("Title");
-        TextMeshProUGUI title = titleObject.AddComponent<TextMeshProUGUI>();
-        title.text = titleText;
-        title.fontSize = 24;
-        title.alignment = TextAlignmentOptions.Center;
-        titleObject.transform.SetParent(panel.transform, false);
-    }
-
-    /// <summary>
-    /// Añade un botón a un panel.
-    /// </summary>
-    /// <param name="panel">El panel donde añadir el botón.</param>
-    /// <param name="buttonText">El texto del botón.</param>
-    /// <param name="onClickAction">La acción a ejecutar al hacer clic en el botón.</param>
-    private void AddButtonToPanel(GameObject panel, string buttonText, UnityEngine.Events.UnityAction onClickAction)
-    {
-        GameObject buttonObject = new GameObject(buttonText);
-        RectTransform rectTransform = buttonObject.AddComponent<RectTransform>();
-        rectTransform.sizeDelta = new Vector2(200, 50);
-
-        Button button = buttonObject.AddComponent<Button>();
-        buttonObject.transform.SetParent(panel.transform, false);
-
-        GameObject textObject = new GameObject("Text");
-        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
-        text.text = buttonText;
-        text.fontSize = 18;
-        text.alignment = TextAlignmentOptions.Center;
-        text.transform.SetParent(buttonObject.transform, false);
-
-        button.onClick.AddListener(onClickAction);
-    }
-
-    /// <summary>
-    /// Añade un campo de entrada a un panel.
-    /// </summary>
-    /// <param name="panel">El panel donde añadir el campo de entrada.</param>
-    /// <param name="placeholderText">El texto del marcador de posición.</param>
-    /// <param name="isPassword">Indica si el campo es para una contraseña.</param>
-    private TMP_InputField AddInputFieldToPanel(GameObject panel, string placeholderText, bool isPassword = false)
-    {
-        GameObject inputFieldObject = new GameObject("InputField");
-        RectTransform rectTransform = inputFieldObject.AddComponent<RectTransform>();
-        rectTransform.sizeDelta = new Vector2(200, 30);
-
-        TMP_InputField inputField = inputFieldObject.AddComponent<TMP_InputField>();
-
-        GameObject placeholder = new GameObject("Placeholder");
-        TextMeshProUGUI placeholderTextComponent = placeholder.AddComponent<TextMeshProUGUI>();
-        placeholderTextComponent.text = placeholderText;
-        placeholderTextComponent.fontSize = 18;
-        placeholderTextComponent.color = Color.gray;
-        placeholder.transform.SetParent(inputFieldObject.transform, false);
-
-        GameObject text = new GameObject("Text");
-        TextMeshProUGUI textComponent = text.AddComponent<TextMeshProUGUI>();
-        textComponent.fontSize = 18;
-        textComponent.color = Color.black;
-        text.transform.SetParent(inputFieldObject.transform, false);
-
-        inputField.placeholder = placeholderTextComponent;
-        inputField.textComponent = textComponent;
-
-        if (isPassword)
-        {
-            inputField.contentType = TMP_InputField.ContentType.Password;
-        }
-
-        inputFieldObject.transform.SetParent(panel.transform, false);
-
-        return inputField;
-    }
-
-
-    //Send Files UI
-
-    public void ShowSendFileUIWithSFB()
-    {
-        // Abre el diálogo nativo de archivos
-        var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivo", "", "*", false);
-        if (paths.Length > 0)
-        {
-            string filePath = paths[0];
-            Debug.Log("Archivo seleccionado: " + filePath);
-
-            // (1) Escoger a quién se le envía este archivo:
-            //     - A toda la sala.
-            //     - A un usuario concreto.
-            // Ejemplo: a toda la sala actual (roomName), usando ChatClient.SendFileToRoom(...)
-
-            string roomName = "MiSala"; // Ajustar según tu lógica
-            ChatClient.Instance.SendFileToRoom(roomName, filePath);
-
-            // (Si quieres enviarlo a un usuario en específico, 
-            //  podrías llamar a ChatClient.Instance.SendFileToUser(destinatario, filePath))
-        }
-        else
-        {
-            Debug.Log("Usuario canceló la selección de archivo.");
-        }
-    }
-
-
-public void RemoveUserFromUI(string username)
-    {
-        Debug.Log($"Eliminando a {username} de la UI.");
-        // Lógica para encontrar y eliminar el usuario de la lista de usuarios conectados en la UI.
-        // Por ejemplo, si estás mostrando los usuarios en un TextMeshProUGUI:
-        if (roomListText != null)
-        {
-            string[] users = roomListText.text.Split('\n');
-            roomListText.text = string.Join("\n", users.Where(user => !user.Contains(username)).ToArray());
-        }
-    }
-
-    /// <summary>
-    /// Añade un texto a un panel.
-    /// </summary>
-    /// <param name="panel">El panel donde añadir el texto.</param>
-    /// <param name="textContent">El contenido del texto.</param>
-    /// <param name="fontSize">El tamaño de la fuente (por defecto 18).</param>
-    private TextMeshProUGUI AddTextToPanel(GameObject panel, string textContent, int fontSize = 18)
-    {
-        GameObject textObject = new GameObject("Text");
-        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
-        text.text = textContent;
-        text.fontSize = fontSize;
-        text.alignment = TextAlignmentOptions.Center;
-        text.transform.SetParent(panel.transform, false);
-
-        return text;
-    }
-
-    #endregion
 }
