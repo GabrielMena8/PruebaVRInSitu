@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using SFB;
+using System.IO;
 
 public class ChatClient : MonoBehaviour
 {
@@ -85,6 +86,8 @@ public class ChatClient : MonoBehaviour
             }
         }
     }
+
+  
 
     #region Métodos para Enviar Comandos (Salas, Usuarios, Mensajes)
 
@@ -290,66 +293,95 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-    public void SendFilesToRoom(List<string> filePaths)
-    {
-        // Aquí debes obtener la sala actual; en este ejemplo se usa un valor fijo
-        string roomName = "SalaActual"; // Reemplaza con tu lógica real
 
-        foreach (string filePath in filePaths)
-        {
-            byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
-            string base64Content = Convert.ToBase64String(fileBytes);
-
-            FileData fileData = new FileData
-            {
-                FileName = System.IO.Path.GetFileName(filePath),
-                FileType = "application/octet-stream",  // Ajusta según la extensión
-                ContentBase64 = base64Content
-            };
-
-            string fileDataJson = JsonConvert.SerializeObject(fileData);
-            WebSocket ws = AuthManager.Instance.WS;
-            if (ws != null && ws.ReadyState == WebSocketState.Open)
-            {
-                ws.Send($"SEND_FILE_ROOM {roomName} {fileDataJson}");
-                Debug.Log($"Archivo [{fileData.FileName}] enviado a la sala {roomName}");
-            }
-            else
-            {
-                Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
-            }
-        }
-    }
-
-
-    private void SendFileToUser(string targetUser, string filePath)
+    public void SendFileToUser(string targetUser, string filePath)
     {
         // Lee el archivo
         byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
         string base64Content = Convert.ToBase64String(fileBytes);
+
+        Debug.Log($"Archivo leído: {filePath}, Longitud de Base64: {base64Content.Length} caracteres");
+
         // Crea un FileData (o la clase que uses)
         FileData fileData = new FileData
         {
-            FileName = System.IO.Path.GetFileName(filePath),
-            FileType = "application/octet-stream",  // o "image/png", etc.
+            FileName = EscapeJsonString(System.IO.Path.GetFileName(filePath)),  // Escapar caracteres y eliminar espacios
+            FileType = GetMimeType(filePath),  // Obtiene el tipo MIME automáticamente
             ContentBase64 = base64Content
         };
-        // Serializa a JSON
-        string fileDataJson = JsonConvert.SerializeObject(fileData);
-        // Envías con un comando "SEND_FILE_USER"
-        // (Necesitas que tu servidor maneje "SEND_FILE_USER {targetUser} {fileDataJson}" y 
-        // reenvíe "FILE_DIRECT" al usuario. O la forma que hayas definido)
-        WebSocket ws = AuthManager.Instance.WS;
-        if (ws != null && ws.ReadyState == WebSocketState.Open)
+
+        // Fragmentación del contenido Base64 en partes más pequeñas
+        int chunkSize = 1024 * 1024;  // 1MB por fragmento (puedes ajustar este tamaño)
+        int totalChunks = (int)Math.Ceiling((double)base64Content.Length / chunkSize);
+
+        Debug.Log($"El archivo se dividirá en {totalChunks} fragmentos");
+
+        // Enviar cada fragmento del archivo
+        for (int i = 0; i < totalChunks; i++)
         {
-            ws.Send($"SEND_FILE_USER {targetUser} {fileDataJson}");
-            Debug.Log($"Archivo [{fileData.FileName}] enviado a {targetUser}");
-        }
-        else
-        {
-            Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+            int startIndex = i * chunkSize;
+            int length = Math.Min(chunkSize, base64Content.Length - startIndex);
+            string chunk = base64Content.Substring(startIndex, length);
+
+            // Crear el mensaje JSON para el fragmento
+            var fileChunk = new
+            {
+                FileName = fileData.FileName,
+                ContentBase64 = chunk,
+                TotalChunks = totalChunks,
+                CurrentChunk = i + 1
+            };
+
+            string fileChunkJson = JsonConvert.SerializeObject(fileChunk);
+
+            // Enviar el fragmento al usuario
+            WebSocket ws = AuthManager.Instance.WS;
+            if (ws != null && ws.ReadyState == WebSocketState.Open)
+            {
+                ws.Send($"SEND_FILE_USER {targetUser} {fileChunkJson}");
+                Debug.Log($"Fragmento {i + 1}/{totalChunks} enviado a {targetUser}");
+            }
+            else
+            {
+                Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+                break;
+            }
         }
     }
+
+    // Método para obtener el tipo MIME de un archivo automáticamente
+    private string GetMimeType(string filePath)
+    {
+        string extension = System.IO.Path.GetExtension(filePath).ToLower();
+        switch (extension)
+        {
+            case ".pdf": return "application/pdf";
+            case ".jpg": return "image/jpeg";
+            case ".jpeg": return "image/jpeg";
+            case ".png": return "image/png";
+            case ".mp4": return "video/mp4";
+            case ".mp3": return "audio/mp3";
+            case ".txt": return "text/plain";
+            case ".zip": return "application/zip";
+            default: return "application/octet-stream";  // Tipo genérico si no se reconoce la extensión
+        }
+    }
+
+    private string EscapeJsonString(string input)
+    {
+        // Reemplaza los caracteres especiales como comillas y saltos de línea
+        string escapedString = input.Replace("\\", "\\\\")
+                                    .Replace("\"", "\\\"")
+                                    .Replace("\n", "\\n")
+                                    .Replace("\r", "\\r");
+
+        // Elimina espacios en blanco innecesarios (solo si no son parte de la estructura)
+        escapedString = string.Join(" ", escapedString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+
+        return escapedString;
+    }
+
+
 
 
 

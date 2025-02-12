@@ -302,25 +302,6 @@ public class PanelManager : MonoBehaviour
         inputRect.offsetMin = Vector2.zero;
         inputRect.offsetMax = Vector2.zero;
 
-        // Botón "Adjuntar"
-        UIUtilities.CreateButton(
-            chatPanel.transform,
-            "Adjuntar",
-            () =>
-            {
-                var extensions = new[] {
-                new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
-                };
-                var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivo", "", extensions, true);
-                if (paths.Length > 0)
-                {
-                    currentSelectedFilePaths.Clear();
-                    currentSelectedFilePaths.AddRange(paths);
-                    Debug.Log("Archivos seleccionados: " + string.Join(", ", paths));
-                }
-            },
-            new Vector2(100, 40)
-        );
 
         // Botón "Enviar"
         UIUtilities.CreateButton(
@@ -340,6 +321,25 @@ public class PanelManager : MonoBehaviour
             new Vector2(100, 40)
         );
 
+        UIUtilities.CreateButton(
+                chatPanel.transform,
+                "Seleccionar Archivos",
+                () =>
+                {
+                    // Abrir el explorador de archivos
+                    var extensions = new[] {
+                        new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
+                    };
+                    var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivos", "", extensions, true);
+                    if (paths.Length > 0)
+                    {
+                        HandleFileSelection(paths);
+                    }
+                },
+                new Vector2(200, 50)
+            );
+
+
         // Botón "Volver"
         UIUtilities.CreateButton(
             chatPanel.transform,
@@ -354,6 +354,20 @@ public class PanelManager : MonoBehaviour
 
         // Mostrar el panel de chat
         chatPanel.SetActive(true);
+    }
+
+
+    private void HandleFileSelection(string[] selectedPaths)
+    {
+        // Verificamos que se haya seleccionado al menos un archivo
+        if (selectedPaths != null && selectedPaths.Length > 0)
+        {
+            // Agregar los archivos seleccionados a la lista actual
+            currentSelectedFilePaths.AddRange(selectedPaths);
+
+            // Actualizamos el panel de archivos seleccionados
+            UpdateSelectedFilesPanel(currentSelectedFilePaths);
+        }
     }
 
 
@@ -400,12 +414,7 @@ public class PanelManager : MonoBehaviour
     }
 
 
-    public void UpdateConnectedUsers(string userList)
-    {
-        // Convertir el string de usuarios a una lista
-        currentConnectedUsernames = new List<string>(userList.Split(','));
-        Debug.Log("Usuarios conectados actualizados: " + string.Join(", ", currentConnectedUsernames));
-    }
+
 
     /////////////////////////////////////////////////////////
     // Manejo de Archivos Seleccionados
@@ -413,24 +422,100 @@ public class PanelManager : MonoBehaviour
 
     public void UpdateSelectedFilesPanel(List<string> filePaths)
     {
+        // Crear el panel de archivos seleccionados
         GameObject panel = CreateSelectedFilesPanel();
+
+        // Limpiar panel
         foreach (Transform child in panel.transform)
         {
             Destroy(child.gameObject);
         }
+
+        // Título del panel
         UIUtilities.CreateTitle(panel.transform, "Archivos Seleccionados", 24);
 
+        // Crear contenedor para los archivos seleccionados con VerticalLayoutGroup
+        GameObject filesContainer = new GameObject("FilesContainer");
+        filesContainer.transform.SetParent(panel.transform, false);
+
+        // Añadir un VerticalLayoutGroup para organizar los archivos
+        VerticalLayoutGroup layoutGroup = filesContainer.AddComponent<VerticalLayoutGroup>();
+        layoutGroup.childAlignment = TextAnchor.UpperLeft; // Alineación de los elementos
+        layoutGroup.spacing = 10; // Espaciado entre los elementos
+        layoutGroup.padding = new RectOffset(10, 10, 10, 10); // Ajuste de los márgenes
+
+        // Añadir ScrollRect para que los elementos sean desplazables
+        ScrollRect scrollRect = filesContainer.AddComponent<ScrollRect>();
+        scrollRect.horizontal = false; // Solo desplazamiento vertical
+        scrollRect.vertical = true;
+        scrollRect.content = filesContainer.GetComponent<RectTransform>();
+
+        // Establecer tamaño del contenedor a 300px x 200px
+        RectTransform rt = filesContainer.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(300f, 200f); // 300px x 200px
+        rt.anchorMin = new Vector2(0.5f, 0.5f); // Centrado
+        rt.anchorMax = new Vector2(0.5f, 0.5f); // Centrado
+
+        // Crear contenedor de archivos directamente en el contenedor de archivos
         foreach (string filePath in filePaths)
         {
-            GameObject fileEntry = new GameObject("FileEntry");
-            fileEntry.transform.SetParent(panel.transform, false);
+            // Crear contenedor de cada archivo
+            GameObject fileContent = new GameObject("FileContent");
+            fileContent.transform.SetParent(filesContainer.transform, false);
 
-            var fileTextObj = UIUtilities.CreateText(fileEntry.transform, System.IO.Path.GetFileName(filePath), 16, TMPro.TextAlignmentOptions.Left);
+            // Añadir un LayoutGroup horizontal para el texto y el botón "X"
+            HorizontalLayoutGroup horizontalLayoutGroup = fileContent.AddComponent<HorizontalLayoutGroup>();
+            horizontalLayoutGroup.childAlignment = TextAnchor.MiddleLeft;
+            horizontalLayoutGroup.spacing = 5; // Espaciado entre el texto y el botón "X"
+
+            // Crear el texto con el nombre del archivo
+            var fileTextObj = UIUtilities.CreateText(fileContent.transform, System.IO.Path.GetFileName(filePath), 16, TMPro.TextAlignmentOptions.Left);
             fileTextObj.color = Color.black;
 
-            UIUtilities.CreateButton(fileEntry.transform, "X", () => RemoveFile(filePath, filePaths), new Vector2(30, 30));
+            // Crear el botón "X" para eliminar el archivo
+            GameObject deleteButton = new GameObject("DeleteButton");
+            deleteButton.transform.SetParent(fileContent.transform, false);
+
+            var buttonRect = deleteButton.AddComponent<RectTransform>();
+            buttonRect.sizeDelta = new Vector2(30, 30);
+
+            Button btn = deleteButton.AddComponent<Button>();
+            UIUtilities.CreateText(deleteButton.transform, "X", 14, TMPro.TextAlignmentOptions.Center).color = Color.red;
+
+            // Función para eliminar el archivo
+            btn.onClick.AddListener(() => RemoveFile(filePath, filePaths));
         }
+
+        // Crear el botón "Enviar Seleccionados"
+        UIUtilities.CreateButton(
+            panel.transform,
+            "Enviar Seleccionados",
+            () =>
+            {
+                // Obtener usuarios conectados
+                List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
+                if (connectedUsers != null && connectedUsers.Count > 0)
+                {
+                    Vector3 screenPos = Camera.main.WorldToScreenPoint(panel.transform.position);
+                    float desiredZ = screenPos.z;
+
+                    // Mostrar menú contextual con los usuarios conectados
+                    ShowContextMenu(connectedUsers, (selectedUser) =>
+                    {
+                        // Enviar los archivos seleccionados al usuario seleccionado
+                        SendFilesToUser(selectedUser);
+                    }, screenPos, desiredZ, true); // Usamos el flag para mover el menú a la izquierda
+                }
+                else
+                {
+                    Debug.LogWarning("No hay usuarios conectados.");
+                }
+            },
+            new Vector2(200, 50) // Tamaño del botón
+        );
     }
+
+
 
     private void RemoveFile(string filePath, List<string> filePaths)
     {
@@ -440,7 +525,6 @@ public class PanelManager : MonoBehaviour
             UpdateSelectedFilesPanel(filePaths);
         }
     }
-
     public GameObject CreateSelectedFilesPanel()
     {
         GameObject panel;
@@ -461,18 +545,58 @@ public class PanelManager : MonoBehaviour
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.localPosition = new Vector3(11f, -12.2f, 104.4f);
+        rt.localPosition = new Vector3(19.83f, 0.2f, 95.7f);
         rt.localRotation = Quaternion.Euler(0, 45, 0);
 
         panel.SetActive(true);
+
+        // Botón "Enviar Seleccionados" para abrir el menú contextual
+        UIUtilities.CreateButton(
+            selectedFilesPanel.transform,
+            "Enviar Seleccionados",
+            () =>
+            {
+                // Obtener usuarios conectados
+                List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
+                if (connectedUsers != null && connectedUsers.Count > 0)
+                {
+                    Vector3 screenPos = Camera.main.WorldToScreenPoint(selectedFilesPanel.transform.position);
+                    float desiredZ = screenPos.z;
+
+                    // Mostrar menú contextual con los usuarios conectados
+                    PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
+                    {
+                        // Enviar los archivos seleccionados al usuario seleccionado
+                        SendFilesToUser(selectedUser);
+                    }, screenPos, desiredZ, true); // Usamos el flag para mover el menú a la izquierda
+                }
+                else
+                {
+                    Debug.LogWarning("No hay usuarios conectados.");
+                }
+            },
+            new Vector2(200, 50)
+        );
+
         return panel;
+    }
+
+
+    // Método para elegir a un destinatario y enviar los archivos
+    private void SendFilesToUser(string targetUser)
+    {
+        foreach (string filePath in currentSelectedFilePaths)
+        {
+            ChatClient.Instance.SendFileToUser(targetUser, filePath); // Delegamos el envío al ChatClient
+        }
+       // Debug.Log($"Archivos enviados a {targetUser}");
     }
 
     /////////////////////////////////////////////////////////
     // Manejo de Usuarios Conectados / Context Menu
     /////////////////////////////////////////////////////////
 
-    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ)
+    public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ, bool isFileSending = false)
     {
         if (contextMenuPanel == null)
         {
@@ -480,30 +604,57 @@ public class PanelManager : MonoBehaviour
             return;
         }
 
+        // Limpiar el panel
         ClearPanel(contextMenuPanel);
-        Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
-        if (canvas == null)
-        {
-            Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
-            return;
-        }
-        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
 
-        // Convertir la posición de pantalla a local
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                canvasRect,
-                screenPosition,
-                canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
-                out Vector2 localPoint))
+        RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
+
+        // Si estamos enviando archivos, usamos las coordenadas fijas
+        if (isFileSending)
         {
-            RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
-            rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
+            // Coordenadas fijas para el contexto del envío de archivos
+            Vector3 fixedPosition = new Vector3(-25.11f, 0.3f, 104.4f);
+
+            rt.localRotation = Quaternion.Euler(0, -45f, 0);
+
+            // Establecer posición con las coordenadas fijas
+            rt.localPosition = fixedPosition;
+
+            // Establecer anclajes y pivotes en el centro
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+        }
+        else
+        {
+            // Si no estamos enviando archivos, usamos el cálculo de posición normal
+            Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
+            if (canvas == null)
+            {
+                Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
+                return;
+            }
+
+            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+            // Convertir la posición de pantalla a local
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    canvasRect,
+                    screenPosition,
+                    canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera,
+                    out Vector2 localPoint))
+            {
+                rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
+            }
+            // Establecer anclajes y pivotes en el centro
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
         }
 
         // Verificar si hay usuarios antes de mostrar el menú
         if (users != null && users.Count > 0)
         {
-
             Debug.Log("Mostrando menú contextual con usuarios: " + string.Join(", ", users));
 
             foreach (string user in users)
@@ -511,7 +662,7 @@ public class PanelManager : MonoBehaviour
                 UIUtilities.CreateButton(
                     contextMenuPanel.transform,
                     user,
-                    () => {onUserSelected(user); HideContextMenu(); },
+                    () => { onUserSelected(user); HideContextMenu(); },
                     new Vector2(200, 50)
                 );
             }
@@ -523,6 +674,49 @@ public class PanelManager : MonoBehaviour
 
         contextMenuPanel.SetActive(true);
     }
+
+    public void UpdateRightPanelWithFilePreview(FileData fileData, string filePath)
+    {
+        // Verifica si el archivo es una imagen
+        if (fileData.FileType.StartsWith("image"))
+        {
+            // Cargar la imagen desde la ruta
+            Texture2D texture = new Texture2D(2, 2); // Imagen cargada
+            byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+            texture.LoadImage(fileBytes);  // Carga la imagen en la textura
+
+            // Buscar el panel derecho
+            GameObject rightPanel = PanelManager.Instance.rightPanel;
+            if (rightPanel == null)
+            {
+                Debug.LogError("No se encontró el panel derecho.");
+                return;
+            }
+
+            // Crear o actualizar el objeto de vista previa de la imagen
+            GameObject previewObject = rightPanel.transform.Find("ImagePreview")?.gameObject;
+            if (previewObject == null)
+            {
+                // Crear el objeto si no existe
+                previewObject = new GameObject("ImagePreview");
+                previewObject.transform.SetParent(rightPanel.transform, false);
+
+                // Crear el componente RawImage para la vista previa
+                RawImage rawImage = previewObject.AddComponent<RawImage>();
+                RectTransform rt = rawImage.GetComponent<RectTransform>();
+                rt.sizeDelta = new Vector2(200f, 200f);  // Tamaño de la vista previa
+            }
+
+            // Asignar la textura al RawImage para mostrar la imagen
+            RawImage image = previewObject.GetComponent<RawImage>();
+            image.texture = texture;
+        }
+        else
+        {
+            Debug.Log("El archivo recibido no es una imagen, no se puede mostrar vista previa.");
+        }
+    }
+
 
 
     public void HideContextMenu()

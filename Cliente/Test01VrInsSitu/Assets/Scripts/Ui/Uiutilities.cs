@@ -353,5 +353,27 @@ public static class UIUtilities
         // 7) Retornar el transform del 'Content' para que se añadan ahí los mensajes
         return contentRect;
     }
+    public static GameObject CreateIcon(Transform parent, string iconPath, Vector2 size)
+    {
+        GameObject iconObject = new GameObject("Icon");
+        iconObject.transform.SetParent(parent, false);
+
+        // Asumimos que iconPath es la ruta de un sprite
+        Sprite iconSprite = Resources.Load<Sprite>(iconPath); // Asegúrate de tener el icono en la carpeta Resources
+
+        if (iconSprite != null)
+        {
+            Image iconImage = iconObject.AddComponent<Image>();
+            iconImage.sprite = iconSprite;
+            iconImage.rectTransform.sizeDelta = size; // Ajusta el tamaño del icono
+        }
+        else
+        {
+            Debug.LogWarning($"No se encontró el icono en la ruta: {iconPath}");
+        }
+
+        return iconObject;
+    }
+
 }
 

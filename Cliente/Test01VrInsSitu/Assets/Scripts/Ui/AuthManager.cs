@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using UnityEngine;
 using WebSocketSharp;
@@ -168,6 +169,40 @@ public class AuthManager : MonoBehaviour
         PanelManager.Instance.ShowChatPanel(joinedRoom);
     }
 
+    private void HandleFileDirect(string payload)
+    {
+
+
+        if (string.IsNullOrEmpty(payload))
+        {
+            Debug.LogError("JSON para archivo está vacío.");
+            return;
+        }
+
+        try
+        {
+            FileData fileData = JsonConvert.DeserializeObject<FileData>(payload);
+            if (fileData == null)
+            {
+                Debug.LogError("Error: FileData es nulo.");
+                return;
+            }
+
+            byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
+            string savePath = Application.persistentDataPath + "/" + fileData.FileName;
+            System.IO.File.WriteAllBytes(savePath, fileBytes);
+            Debug.Log($"Archivo recibido y guardado en: {savePath}");
+
+            // Llamar a la función para actualizar el panel derecho con la vista previa
+            PanelManager.Instance.UpdateRightPanelWithFilePreview(fileData, savePath);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Error al procesar archivo: " + ex.Message);
+        }
+    }
+
+
     private void HandleMessage(string payload)
     {
         string receivedMessage = payload; // e.Data ya le quitamos "MESSAGE"
@@ -228,33 +263,7 @@ public class AuthManager : MonoBehaviour
         ObjectManager.Instance.InstantiateComplexObject(data);
     }
 
-    private void HandleFileDirect(string payload)
-    {
-        if (string.IsNullOrEmpty(payload))
-        {
-            Debug.LogError("JSON para archivo está vacío.");
-            return;
-        }
 
-        try
-        {
-            FileData fileData = JsonConvert.DeserializeObject<FileData>(payload);
-            if (fileData == null)
-            {
-                Debug.LogError("Error: FileData es nulo.");
-                return;
-            }
-
-            byte[] fileBytes = Convert.FromBase64String(fileData.ContentBase64);
-            string savePath = Application.persistentDataPath + "/" + fileData.FileName;
-            System.IO.File.WriteAllBytes(savePath, fileBytes);
-            Debug.Log($"Archivo recibido y guardado en: {savePath}");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("Error al procesar archivo: " + ex.Message);
-        }
-    }
 
     private void HandleTyping(string payload)
     {
