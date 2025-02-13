@@ -261,93 +261,50 @@ public class ChatClient : MonoBehaviour
 
 
 
-    public void SendFileToRoom(string roomName, string filePath)
-    {
-        // Lee el archivo
-        byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
-        string base64Content = Convert.ToBase64String(fileBytes);
 
-        // Crea un FileData (o la clase que uses)
-        FileData fileData = new FileData
-        {
-            FileName = System.IO.Path.GetFileName(filePath),
-            FileType = "application/octet-stream",  // o "image/png", etc.
-            ContentBase64 = base64Content
-        };
-
-        // Serializa a JSON
-        string fileDataJson = JsonConvert.SerializeObject(fileData);
-
-        // Envías con un comando "SEND_FILE_ROOM"
-        // (Necesitas que tu servidor maneje "SEND_FILE_ROOM {roomName} {fileDataJson}" y 
-        // reenvíe "FILE_DIRECT" a todos en la sala. O la forma que hayas definido)
-        WebSocket ws = AuthManager.Instance.WS;
-        if (ws != null && ws.ReadyState == WebSocketState.Open)
-        {
-            ws.Send($"SEND_FILE_ROOM {roomName} {fileDataJson}");
-            Debug.Log($"Archivo [{fileData.FileName}] enviado a la sala {roomName}");
-        }
-        else
-        {
-            Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
-        }
-    }
 
 
     public void SendFileToUser(string targetUser, string filePath)
     {
-        // Lee el archivo
-        byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+        byte[] fileBytes = File.ReadAllBytes(filePath);
         string base64Content = Convert.ToBase64String(fileBytes);
 
-        Debug.Log($"Archivo leído: {filePath}, Longitud de Base64: {base64Content.Length} caracteres");
-
-        // Crea un FileData (o la clase que uses)
-        FileData fileData = new FileData
-        {
-            FileName = EscapeJsonString(System.IO.Path.GetFileName(filePath)),  // Escapar caracteres y eliminar espacios
-            FileType = GetMimeType(filePath),  // Obtiene el tipo MIME automáticamente
-            ContentBase64 = base64Content
-        };
-
-        // Fragmentación del contenido Base64 en partes más pequeñas
-        int chunkSize = 1024 * 1024;  // 1MB por fragmento (puedes ajustar este tamaño)
+        int chunkSize = 1024 * 256;  // 256KB por fragmento
         int totalChunks = (int)Math.Ceiling((double)base64Content.Length / chunkSize);
 
-        Debug.Log($"El archivo se dividirá en {totalChunks} fragmentos");
-
-        // Enviar cada fragmento del archivo
         for (int i = 0; i < totalChunks; i++)
         {
             int startIndex = i * chunkSize;
             int length = Math.Min(chunkSize, base64Content.Length - startIndex);
             string chunk = base64Content.Substring(startIndex, length);
 
-            // Crear el mensaje JSON para el fragmento
-            var fileChunk = new
+            // Crear el fragmento de archivo
+            var fileChunk = new FileChunk
             {
-                FileName = fileData.FileName,
+                FileName = Path.GetFileName(filePath),
                 ContentBase64 = chunk,
                 TotalChunks = totalChunks,
-                CurrentChunk = i + 1
+                CurrentChunk = i + 1  // Empezar desde 1
             };
 
             string fileChunkJson = JsonConvert.SerializeObject(fileChunk);
-
-            // Enviar el fragmento al usuario
             WebSocket ws = AuthManager.Instance.WS;
             if (ws != null && ws.ReadyState == WebSocketState.Open)
             {
                 ws.Send($"SEND_FILE_USER {targetUser} {fileChunkJson}");
-                Debug.Log($"Fragmento {i + 1}/{totalChunks} enviado a {targetUser}");
             }
             else
             {
                 Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
                 break;
             }
+
+            Debug.Log($"Enviando fragmento {i + 1}/{totalChunks}.");
         }
     }
+
+
+
 
     // Método para obtener el tipo MIME de un archivo automáticamente
     private string GetMimeType(string filePath)

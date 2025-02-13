@@ -675,17 +675,17 @@ public class PanelManager : MonoBehaviour
         contextMenuPanel.SetActive(true);
     }
 
-    public void UpdateRightPanelWithFilePreview(FileData fileData, string filePath)
+    public void UpdateRightPanelWithFilePreview(FileChunk fileChunk, string filePath)
     {
-        // Verifica si el archivo es una imagen
-        if (fileData.FileType.StartsWith("image"))
+        // Verifica si el fragmento de archivo es de tipo imagen
+        if (fileChunk.FileType.StartsWith("image"))
         {
-            // Cargar la imagen desde la ruta
-            Texture2D texture = new Texture2D(2, 2); // Imagen cargada
+            // Cargar la imagen desde la ruta proporcionada
+            Texture2D texture = new Texture2D(2, 2); // Inicializa la textura
             byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
             texture.LoadImage(fileBytes);  // Carga la imagen en la textura
 
-            // Buscar el panel derecho
+            // Buscar el panel derecho donde se mostrará la vista previa
             GameObject rightPanel = PanelManager.Instance.rightPanel;
             if (rightPanel == null)
             {
@@ -704,18 +704,19 @@ public class PanelManager : MonoBehaviour
                 // Crear el componente RawImage para la vista previa
                 RawImage rawImage = previewObject.AddComponent<RawImage>();
                 RectTransform rt = rawImage.GetComponent<RectTransform>();
-                rt.sizeDelta = new Vector2(200f, 200f);  // Tamaño de la vista previa
+                rt.sizeDelta = new Vector2(200f, 200f);  // Establece el tamaño de la vista previa
             }
 
-            // Asignar la textura al RawImage para mostrar la imagen
+            // Asignar la textura cargada al RawImage para mostrar la imagen
             RawImage image = previewObject.GetComponent<RawImage>();
             image.texture = texture;
         }
         else
         {
-            Debug.Log("El archivo recibido no es una imagen, no se puede mostrar vista previa.");
+            Debug.Log("El fragmento de archivo recibido no es una imagen, no se puede mostrar vista previa.");
         }
     }
+
 
 
 

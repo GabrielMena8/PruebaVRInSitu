@@ -1,14 +1,8 @@
-using Newtonsoft.Json;
-
-[System.Serializable]
-public class FileData
+public class FileChunk
 {
-
     public string FileName { get; set; }
-
-   
-    public string FileType { get; set; }
-
-   
     public string ContentBase64 { get; set; }
+    public int TotalChunks { get; set; }
+    public int CurrentChunk { get; set; }
+    public string FileType { get; set; }  // Asegúrate de que este campo esté presente
 }

@@ -24,8 +24,13 @@ public enum UserStatus
         private static int totalMessagesReceived = 0;
         private static List<long> latencies = new List<long>();
 
-        // NUEVO: Lista de conexiones activas para enviar mensajes (broadcast) a los clientes de la misma sala
-        private static List<ChatRoom> clients = new List<ChatRoom>();
+    private static Dictionary<string, List<string>> fileChunksInProgress = new Dictionary<string, List<string>>();
+
+    
+
+
+    // NUEVO: Lista de conexiones activas para enviar mensajes (broadcast) a los clientes de la misma sala
+    private static List<ChatRoom> clients = new List<ChatRoom>();
 
         private string userName;
         private string roomName;
@@ -104,9 +109,7 @@ public enum UserStatus
                         case "SEND_FILE_USER":
                             HandleSendFileUser(messageParts);
                             break;
-                        case "SEND_FILE_ROOM":
-                        HandleSendFileRoom(messageParts);
-                        break;
+                   
 
                     default:
                             Send("Comando no reconocido. Escribe 'HELP' para ver la lista de comandos disponibles.");
@@ -402,55 +405,7 @@ public enum UserStatus
             // Envía un mensaje que comienza con "CONNECTED_USERS:" seguido de la información.
             Send($"CONNECTED_USERS:\nSala: {room.RoomName} - Usuarios Activos: {usersInRoom}");
         }
-    private void HandleSendFileRoom(string[] parts)
-    {
-        Console.WriteLine("[DEBUG] Iniciando el manejo de archivo para la sala.");
 
-        if (parts.Length < 3)
-        {
-            Console.WriteLine("[ERROR] Formato de SEND_FILE_ROOM incorrecto.");
-            Send("ERROR: Formato de SEND_FILE_ROOM incorrecto.");
-            return;
-        }
-
-        string roomName = parts[1].Trim();
-        string fileDataJson = parts[2].Trim();
-
-        // Intentar deserializar el archivo JSON
-        try
-        {
-            Console.WriteLine("[DEBUG] Intentando deserializar el archivo JSON.");
-
-            FileData fileData = JsonConvert.DeserializeObject<FileData>(fileDataJson);
-
-            if (fileData == null)
-            {
-                Console.WriteLine("[ERROR] Datos de archivo inválidos.");
-                Send("ERROR: Datos de archivo inválidos.");
-                return;
-            }
-
-            Console.WriteLine("[DEBUG] Archivo deserializado correctamente. Nombre: " + fileData.FileName);
-
-            // Enviar el archivo a todos los clientes en la misma sala
-            foreach (ChatRoom client in clients)
-            {
-                if (client.roomName == roomName)
-                {
-                    client.Send("FILE_DIRECT " + fileDataJson);
-                    Console.WriteLine($"[DEBUG] Enviando archivo a {client.userName} en la sala {roomName}: {fileData.FileName}");
-                }
-            }
-
-            Console.WriteLine($"[DEBUG] Archivo {fileData.FileName} enviado a todos los usuarios de la sala {roomName}");
-
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[ERROR] Error al procesar el archivo: {ex.Message}");
-            Send("ERROR: No se pudo procesar el archivo.");
-        }
-    }
 
 
     // Manejar estado "escribiendo"
@@ -643,92 +598,133 @@ public enum UserStatus
 
     //Handle de files
 
+    // Método para escapar las comillas y otros caracteres especiales
+    private string EscapeJsonString(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input;
 
-    // Diccionario para almacenar los fragmentos recibidos
-    private static Dictionary<string, List<string>> fileChunksInProgress = new Dictionary<string, List<string>>();
+        return input.Replace("\\", "\\\\")  // Escapa barras invertidas
+                    .Replace("\"", "\\\"")  // Escapa comillas dobles
+                    .Replace("\n", "\\n")   // Escapa saltos de línea
+                    .Replace("\r", "\\r");  // Escapa retornos de carro
+    }
 
-    // Manejar el comando SEND_FILE_USER para recibir los fragmentos
+
+
+    private static Dictionary<string, FileChunkTracker> fileTransfers = new Dictionary<string, FileChunkTracker>();
+
     private void HandleSendFileUser(string[] parts)
     {
-        Console.WriteLine("[DEBUG] Iniciando el manejo de archivo para un usuario específico.");
-
-        if (parts.Length < 3)
-        {
-            Console.WriteLine("[ERROR] Formato de SEND_FILE_USER incorrecto.");
-            Send("ERROR: Formato de SEND_FILE_USER incorrecto.");
-            return;
-        }
-
-        string targetUser = parts[1].Trim();
-        string fileDataJson = parts[2].Trim();
-
-        // Eliminar espacios adicionales antes de deserializar
-        fileDataJson = string.Join(" ", fileDataJson.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-
-        // Verifica el JSON recibido
-        Console.WriteLine("[DEBUG] Datos del archivo JSON recibidos: " + fileDataJson);
-
-        // Intentar deserializar el archivo JSON
         try
         {
-            Console.WriteLine("[DEBUG] Intentando deserializar el archivo JSON.");
+            // Deserializamos el fragmento de archivo
+            FileChunk chunk = JsonConvert.DeserializeObject<FileChunk>(parts[2]);
 
-            FileChunk fileChunk = JsonConvert.DeserializeObject<FileChunk>(fileDataJson);
+            // Construimos la clave de transferencia usando el nombre de archivo y el usuario
+            string transferKey = $"{chunk.FileName}_{userName}"; // Usar usuario origen como identificador único
 
-            if (fileChunk == null)
+            Console.WriteLine($"Recibiendo fragmento de archivo: {chunk.FileName}, Fragmento: {chunk.CurrentChunk}/{chunk.TotalChunks}, Clave: {transferKey}");
+
+            // Verifica si el diccionario ya tiene la clave para este archivo
+            if (!fileTransfers.ContainsKey(transferKey))
             {
-                Console.WriteLine("[ERROR] Datos de archivo inválidos.");
-                Send("ERROR: Datos de archivo inválidos.");
-                return;
+                // Si no contiene la clave, la creamos
+                Console.WriteLine("Creando nuevo rastreador para el archivo: " + transferKey);
+
+                // Ruta temporal para fragmentos
+                string tempFolder = Path.Combine(Path.GetTempPath(), "InsituChatApp");
+                if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
+
+                string tempFilePath = Path.Combine(tempFolder, $"{chunk.FileName}.temp");
+                fileTransfers[transferKey] = new FileChunkTracker(chunk.TotalChunks, tempFilePath);
+            }
+            else
+            {
+                Console.WriteLine("La clave ya existe en el diccionario. Usando clave existente.");
             }
 
-            Console.WriteLine("[DEBUG] Fragmento recibido. Nombre: " + fileChunk.FileName);
+            // Añadimos el fragmento al rastreador
+            fileTransfers[transferKey].AddChunk(chunk.CurrentChunk - 1, chunk.ContentBase64); // Ajuste al índice base 0
 
-            // Almacenar el fragmento
-            if (!fileChunksInProgress.ContainsKey(fileChunk.FileName))
+            // Si todos los fragmentos se han recibido, reconstruir el archivo
+            if (fileTransfers[transferKey].IsComplete())
             {
-                fileChunksInProgress[fileChunk.FileName] = new List<string>();
-            }
+                Console.WriteLine($"Archivo completo recibido: {chunk.FileName}");
 
-            fileChunksInProgress[fileChunk.FileName].Add(fileChunk.ContentBase64);
+                // Combina los fragmentos y guarda el archivo
+                byte[] fileBytes = fileTransfers[transferKey].CombineChunks();
 
-            // Verificar si se han recibido todos los fragmentos
-            if (fileChunksInProgress[fileChunk.FileName].Count == fileChunk.TotalChunks)
-            {
-                Console.WriteLine("[DEBUG] Todos los fragmentos recibidos. Reconstruyendo el archivo.");
+                // Guardar el archivo en la carpeta Descargas
+                string downloadsFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads\";
+                string folderPath = Path.Combine(downloadsFolder, "InsituChatApp");
+                if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
 
-                // Reconstruir el archivo completo
-                string fullBase64Content = string.Join("", fileChunksInProgress[fileChunk.FileName]);
-                byte[] fileBytes = Convert.FromBase64String(fullBase64Content);
-
-                // Guardar el archivo en el servidor
-                string savePath = Path.Combine("ruta_donde_guardar", fileChunk.FileName);
+                string savePath = Path.Combine(folderPath, chunk.FileName);
                 File.WriteAllBytes(savePath, fileBytes);
-                Console.WriteLine($"[DEBUG] Archivo {fileChunk.FileName} guardado en {savePath}");
 
-                // Limpiar el diccionario de fragmentos para el archivo
-                fileChunksInProgress.Remove(fileChunk.FileName);
+                // Limpiar los fragmentos y eliminar archivo temporal
+                fileTransfers.Remove(transferKey);
+                File.Delete(fileTransfers[transferKey].TempFilePath);
+
+                Console.WriteLine($"Archivo {chunk.FileName} recibido y guardado en {savePath}");
+                Send("FILE_RECEIVED SUCCESS");
+            }
+            else
+            {
+                Console.WriteLine($"Fragmento {chunk.CurrentChunk}/{chunk.TotalChunks} recibido.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ERROR] Error al procesar el archivo: {ex.Message}");
-            Send("ERROR: No se pudo procesar el archivo.");
+            Console.WriteLine($"Error al procesar el archivo: {ex.Message}");
+            Send("FILE_ERROR " + ex.Message);
         }
     }
 
 
-    // Clase que representa un fragmento de archivo
-    public class FileChunk
+
+
+
+
+
+
+
+
+
+    public class FileChunkTracker
     {
-        public string FileName { get; set; }
-        public string ContentBase64 { get; set; }
-        public int TotalChunks { get; set; }
-        public int CurrentChunk { get; set; }
+        public string[] Chunks { get; }
+        private int _receivedCount = 0;
+
+        // Ruta temporal del archivo
+        public string TempFilePath { get; }
+
+        public FileChunkTracker(int totalChunks, string tempFilePath)
+        {
+            Chunks = new string[totalChunks];
+            TempFilePath = tempFilePath;
+        }
+
+        public void AddChunk(int index, string content)
+        {
+            if (index >= 0 && index < Chunks.Length)
+            {
+                Chunks[index] = content;
+                _receivedCount++;
+            }
+        }
+
+        public bool IsComplete() => _receivedCount == Chunks.Length;
+
+        // Método para combinar los fragmentos y obtener los datos completos del archivo
+        public byte[] CombineChunks()
+        {
+            // Unimos todos los fragmentos en un solo string
+            string combinedContent = string.Join("", Chunks);
+            return Convert.FromBase64String(combinedContent);  // Convertimos el contenido combinado de nuevo a bytes
+        }
     }
-
-
-
 
 
 
@@ -740,6 +736,7 @@ class InsituChatServer
         static void Main(string[] args)
         {
             WebSocketServer wssv = new WebSocketServer("ws://127.0.0.1:8080");
+
             wssv.AddWebSocketService<ChatRoom>("/chat");
 
             bool running = true;
