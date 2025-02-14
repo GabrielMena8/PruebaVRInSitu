@@ -660,10 +660,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   alertPrefab: {fileID: 4238920881425783687, guid: 82a10028138bc7d4f976da2d59ac227b, type: 3}
+  instructionPrefab: {fileID: 0}
   alertDuration: 5
-  distanceFromCamera: 1
-  baseOffset: {x: 0.2, y: 0.2}
+  alertDistanceFromCamera: 1.2
+  alertBaseOffset: {x: 0.8, y: 0.25}
   spacingBetweenAlerts: 0.1
+  instructionDistanceFromCamera: 1.2
+  instructionOffset: {x: -0.8, y: -0.3}
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0

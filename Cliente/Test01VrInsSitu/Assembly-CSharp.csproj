@@ -64,7 +64,6 @@
     <Compile Include="Assets\Scripts\Ui\AuthManager.cs" />
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowserWindows.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMesh.cs" />
-    <Compile Include="Assets\Scripts\Clients\Chat_Client.cs" />
     <Compile Include="Assets\Scripts\Ui\UiUtilities.cs" />
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowser.cs" />
     <Compile Include="Assets\Scripts\Interaction\ObjectManipulator.cs" />
@@ -78,6 +77,7 @@
     <Compile Include="Assets\Scripts\Ui\UIAlertManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMaterial.cs" />
     <Compile Include="Assets\Scripts\Serialization\ObjectManager.cs" />
+    <Compile Include="Assets\Scripts\Clients\ChatClient.cs" />
     <Compile Include="Assets\Scripts\Ui\PanelManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\ComplexObjectData.cs" />
     <Compile Include="Assets\Scripts\Clients\Login.cs" />

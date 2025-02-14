@@ -43,6 +43,17 @@ public class PanelManager : MonoBehaviour
     {
         ShowLoginPanel();
         ConfigureLoginPanel();
+
+        if (uiAlertManager != null)
+        {
+            uiAlertManager.ShowInstruction(
+                "Controles:\n" +
+                "- T: Trasladar\n" +
+                "- R: Rotar\n" +
+                "- S: Escalar\n" +
+                "- E: Enviar objeto 3D"
+            );
+        }
     }
 
     /////////////////////////////////////////////////////////

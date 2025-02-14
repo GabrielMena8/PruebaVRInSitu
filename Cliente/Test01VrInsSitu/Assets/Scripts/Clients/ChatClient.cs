@@ -54,6 +54,9 @@ public class ChatClient : MonoBehaviour
             loginManager.loginPanel.SetActive(false);
             dynamicPanelManager.SetRole(role);
             cameraNavigator.SetLoggedIn(true);
+            // Notificar al usuario de que el login fue exitoso
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Inicio de sesión exitoso.", AlertType.Success);
         });
     }
 
@@ -63,6 +66,9 @@ public class ChatClient : MonoBehaviour
         mainThreadActions.Enqueue(() =>
         {
             Debug.Log("Error de inicio de sesión: " + error);
+            // Mostrar alerta de error de login
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Error de inicio de sesión: " + error, AlertType.Error);
         });
     }
 
@@ -77,6 +83,8 @@ public class ChatClient : MonoBehaviour
         {
             Debug.Log($"{username} se ha desconectado.");
             PanelManager.Instance.RemoveUserFromUI(username);
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert($"{username} se ha desconectado.", AlertType.Warning);
         });
     }
 
@@ -94,6 +102,8 @@ public class ChatClient : MonoBehaviour
             else
             {
                 Debug.LogError("No se puede enviar estado TYPING. El WebSocket no está conectado.");
+                if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                    PanelManager.Instance.uiAlertManager.ShowAlert("No se puede enviar estado TYPING. Conexión perdida.", AlertType.Error);
             }
         }
     }
@@ -107,9 +117,18 @@ public class ChatClient : MonoBehaviour
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
             ws.Send($"CREATE_ROOM {roomName}");
+            // Notificar al usuario de que se está creando la sala
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Creando sala...", AlertType.Info);
+        }
         else
+        {
             Debug.LogError("No se puede crear la sala. El WebSocket no está conectado.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("No se puede crear la sala. Conexión perdida.", AlertType.Error);
+        }
     }
 
     // Eliminar una sala de chat existente
@@ -118,6 +137,8 @@ public class ChatClient : MonoBehaviour
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
             ws.Send($"DELETE_ROOM {roomName}");
+        else
+            Debug.LogError("No se puede eliminar la sala. El WebSocket no está conectado.");
     }
 
     // Eliminar un usuario del chat
@@ -126,6 +147,8 @@ public class ChatClient : MonoBehaviour
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
             ws.Send($"DELETE_USER {username}");
+        else
+            Debug.LogError("No se puede eliminar el usuario. El WebSocket no está conectado.");
     }
 
     // Ver la lista de salas de chat
@@ -134,6 +157,8 @@ public class ChatClient : MonoBehaviour
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
             ws.Send("VIEW_ROOMS");
+        else
+            Debug.LogError("No se puede ver las salas. El WebSocket no está conectado.");
     }
 
     // Ver la lista de usuarios conectados
@@ -142,6 +167,8 @@ public class ChatClient : MonoBehaviour
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
             ws.Send("VIEW_CONNECTED");
+        else
+            Debug.LogError("No se puede ver los usuarios conectados. El WebSocket no está conectado.");
     }
 
     // Unirse a una sala de chat
@@ -151,7 +178,11 @@ public class ChatClient : MonoBehaviour
         if (ws != null && ws.ReadyState == WebSocketState.Open)
             ws.Send($"JOIN_ROOM {roomName}");
         else
+        {
             Debug.LogError("No se puede unir a la sala. El WebSocket no está conectado.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("No se puede unir a la sala. Conexión perdida.", AlertType.Error);
+        }
     }
 
     // Enviar un mensaje a la sala de chat
@@ -162,10 +193,15 @@ public class ChatClient : MonoBehaviour
         {
             ws.Send($"MESSAGE {message}");
             isTyping = false;
+            // Notificar al usuario que el mensaje fue enviado (opcional)
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Mensaje enviado.", AlertType.Info);
         }
         else
         {
             Debug.LogError("No se puede enviar el mensaje. El WebSocket no está conectado.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("No se puede enviar el mensaje. Conexión perdida.", AlertType.Error);
         }
     }
 
@@ -179,93 +215,91 @@ public class ChatClient : MonoBehaviour
         if (obj == null)
         {
             Debug.LogError("OnObjectClicked: El objeto es nulo.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Error: Objeto nulo.", AlertType.Error);
             return;
         }
 
-        // Serializar el objeto en ComplexObjectData
         ComplexObjectData data = GetComplexObjectData(obj);
         if (data == null)
         {
             Debug.LogError("OnObjectClicked: Falló al obtener los datos del objeto.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Error: No se pudieron obtener los datos del objeto.", AlertType.Error);
             return;
         }
 
-        // Enviar con el envoltorio "OBJECT_COMPLEX" + payload
         string objectDataJson = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
-        // Codificar a Base64
         string encodedJson = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(objectDataJson));
         Debug.Log("Objeto serializado en Base64: " + encodedJson);
 
-        // Obtener la lista de usuarios conectados para mostrar el menú contextual
         List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
         if (connectedUsers == null || connectedUsers.Count == 0)
         {
             Debug.LogWarning("OnObjectClicked: No hay usuarios conectados. Solicitando actualización...");
             ViewConnectedUsers();
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("No hay usuarios conectados. Intentando actualizar...", AlertType.Warning);
             StartCoroutine(RetryOnObjectClicked(obj));
             return;
         }
 
-        // Convertir la posición del objeto a coordenadas de pantalla para colocar el menú
         Vector3 screenPos = Camera.main.WorldToScreenPoint(obj.transform.position);
         float desiredZ = screenPos.z;
 
-        // Mostrar el menú contextual con la lista de usuarios
         PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
         {
-            // Enviar el objeto (encodedJson) al usuario seleccionado
             SendObjectToUser(selectedUser, encodedJson);
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Objeto enviado a " + selectedUser, AlertType.Success);
         }, screenPos, desiredZ);
     }
 
-    // Reintentar evento de clic en objeto después de un retraso
     private IEnumerator RetryOnObjectClicked(GameObject obj)
     {
         yield return new WaitForSeconds(0.5f);
-
         List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
         if (connectedUsers != null && connectedUsers.Count > 0)
         {
             Debug.Log("RetryOnObjectClicked: Lista actualizada: " + string.Join(", ", connectedUsers));
-
-            // Serializar el objeto nuevamente
             ComplexObjectData data = GetComplexObjectData(obj);
             if (data == null)
             {
                 Debug.LogError("No se pudo obtener los datos del objeto.");
                 yield break;
             }
-
             string serializedObjectData = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
             string encodedObjectData = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(serializedObjectData));
-
             Vector3 screenPos = Camera.main.WorldToScreenPoint(obj.transform.position);
             float desiredZ = screenPos.z;
-
             PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
             {
                 SendObjectToUser(selectedUser, encodedObjectData);
+                if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                    PanelManager.Instance.uiAlertManager.ShowAlert("Objeto enviado a " + selectedUser, AlertType.Success);
             }, screenPos, desiredZ);
         }
         else
         {
             Debug.LogWarning("RetryOnObjectClicked: Todavía no hay usuarios conectados tras el retraso.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("No se actualizaron los usuarios conectados.", AlertType.Warning);
         }
     }
 
-    // Enviar el objeto a un usuario específico
     public void SendObjectToUser(string targetUser, string encodedJson)
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
         {
-            // Enviar el mensaje con el comando SEND_OBJECT
             ws.Send($"SEND_OBJECT {targetUser} {encodedJson}");
             Debug.Log("Objeto enviado a " + targetUser);
         }
         else
         {
             Debug.LogError("No se puede enviar el objeto. El WebSocket no está conectado.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Error: No se puede enviar el objeto. Conexión perdida.", AlertType.Error);
         }
     }
 
@@ -273,7 +307,6 @@ public class ChatClient : MonoBehaviour
 
     #region Envío de Archivos
 
-    // Enviar un archivo a un usuario específico
     public void SendFileToUser(string targetUser, string filePath)
     {
         byte[] fileBytes = File.ReadAllBytes(filePath);
@@ -288,13 +321,12 @@ public class ChatClient : MonoBehaviour
             int length = Math.Min(chunkSize, base64Content.Length - startIndex);
             string chunk = base64Content.Substring(startIndex, length);
 
-            // Crear el fragmento de archivo
             var fileChunk = new FileChunk
             {
                 FileName = Path.GetFileName(filePath),
                 ContentBase64 = chunk,
                 TotalChunks = totalChunks,
-                CurrentChunk = i + 1  // Comenzar desde 1
+                CurrentChunk = i + 1
             };
 
             string fileChunkJson = JsonConvert.SerializeObject(fileChunk);
@@ -306,6 +338,8 @@ public class ChatClient : MonoBehaviour
             else
             {
                 Debug.LogError("No se puede enviar el archivo. El WebSocket no está conectado.");
+                if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                    PanelManager.Instance.uiAlertManager.ShowAlert("No se puede enviar el archivo. Conexión perdida.", AlertType.Error);
                 break;
             }
 
@@ -313,10 +347,9 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-    // Obtener el tipo MIME de un archivo basado en su extensión
     private string GetMimeType(string filePath)
     {
-        string extension = System.IO.Path.GetExtension(filePath).ToLower();
+        string extension = Path.GetExtension(filePath).ToLower();
         switch (extension)
         {
             case ".pdf": return "application/pdf";
@@ -327,7 +360,7 @@ public class ChatClient : MonoBehaviour
             case ".mp3": return "audio/mp3";
             case ".txt": return "text/plain";
             case ".zip": return "application/zip";
-            default: return "application/octet-stream";  // Tipo genérico si la extensión no es reconocida
+            default: return "application/octet-stream";
         }
     }
 
@@ -335,22 +368,16 @@ public class ChatClient : MonoBehaviour
 
     #region Utilidades
 
-    // Escapar caracteres especiales en una cadena JSON
     private string EscapeJsonString(string input)
     {
-        // Reemplazar caracteres especiales como comillas y saltos de línea
         string escapedString = input.Replace("\\", "\\\\")
                                     .Replace("\"", "\\\"")
                                     .Replace("\n", "\\n")
                                     .Replace("\r", "\\r");
-
-        // Eliminar espacios en blanco innecesarios (solo si no forman parte de la estructura)
         escapedString = string.Join(" ", escapedString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-
         return escapedString;
     }
 
-    // Obtener datos de objeto complejo desde un GameObject
     private ComplexObjectData GetComplexObjectData(GameObject obj)
     {
         MeshFilter meshFilter = obj.GetComponent<MeshFilter>();
@@ -359,6 +386,8 @@ public class ChatClient : MonoBehaviour
         if (meshFilter == null)
         {
             Debug.LogError("El objeto no tiene MeshFilter.");
+            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+                PanelManager.Instance.uiAlertManager.ShowAlert("Error: El objeto no tiene MeshFilter.", AlertType.Error);
             return null;
         }
 
@@ -367,7 +396,6 @@ public class ChatClient : MonoBehaviour
         data.Position = obj.transform.position;
         data.Rotation = obj.transform.rotation;
         data.Scale = obj.transform.localScale;
-
         data.MeshData = SerializableMesh.FromMesh(meshFilter.mesh);
 
         if (renderer != null && renderer.material != null)

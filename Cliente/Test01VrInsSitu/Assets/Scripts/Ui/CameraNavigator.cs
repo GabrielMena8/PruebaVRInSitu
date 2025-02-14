@@ -3,12 +3,17 @@ using System.Collections;
 
 public class CameraNavigator : MonoBehaviour
 {
+    // Referencia a la cámara del jugador
     public Transform playerCamera;
-    [SerializeField] private Transform[] panels;
-    private int currentPanelIndex = 0;
-    private bool canNavigate = false;  // Controla si se puede navegar
 
- 
+    // Paneles a los que se puede navegar
+    [SerializeField] private Transform[] panels;
+
+    // Índice del panel actual
+    private int currentPanelIndex = 0;
+
+    // Controla si se puede navegar
+    private bool canNavigate = false;
 
     /// <summary>
     /// Método para habilitar o deshabilitar la navegación.
@@ -22,18 +27,24 @@ public class CameraNavigator : MonoBehaviour
 
     private void Update()
     {
-        if (!canNavigate) return;  // No permite la navegación si no está logueado
+        // No permite la navegación si no está logueado
+        if (!canNavigate) return;
 
+        // Navegar al siguiente panel con la flecha derecha
         if (Input.GetKeyDown(KeyCode.RightArrow))
         {
             NavigateToNextPanel();
         }
+        // Navegar al panel anterior con la flecha izquierda
         else if (Input.GetKeyDown(KeyCode.LeftArrow))
         {
             NavigateToPreviousPanel();
         }
     }
 
+    /// <summary>
+    /// Navega al siguiente panel.
+    /// </summary>
     public void NavigateToNextPanel()
     {
         if (panels.Length == 0) return;
@@ -41,6 +52,9 @@ public class CameraNavigator : MonoBehaviour
         MoveToPanel(currentPanelIndex);
     }
 
+    /// <summary>
+    /// Navega al panel anterior.
+    /// </summary>
     public void NavigateToPreviousPanel()
     {
         if (panels.Length == 0) return;
@@ -48,6 +62,10 @@ public class CameraNavigator : MonoBehaviour
         MoveToPanel(currentPanelIndex);
     }
 
+    /// <summary>
+    /// Mueve la cámara al panel especificado.
+    /// </summary>
+    /// <param name="index">Índice del panel al que se va a mover.</param>
     private void MoveToPanel(int index)
     {
         if (panels[index] == null) return;
@@ -59,6 +77,14 @@ public class CameraNavigator : MonoBehaviour
         StartCoroutine(SmoothMoveAndRotate(playerCamera, targetPosition, targetRotation, 1f));
     }
 
+    /// <summary>
+    /// Corrutina para mover y rotar suavemente la cámara.
+    /// </summary>
+    /// <param name="target">Transform de la cámara.</param>
+    /// <param name="destination">Posición destino.</param>
+    /// <param name="rotation">Rotación destino.</param>
+    /// <param name="duration">Duración del movimiento.</param>
+    /// <returns></returns>
     private IEnumerator SmoothMoveAndRotate(Transform target, Vector3 destination, Quaternion rotation, float duration)
     {
         Vector3 startPosition = target.position;

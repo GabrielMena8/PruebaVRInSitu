@@ -2,6 +2,7 @@ using UnityEngine;
 
 public class ObjectManipulator : MonoBehaviour
 {
+    // Enum para los modos de manipulación
     public enum ManipulationMode { Translate, Rotate, Scale, Send }
     public ManipulationMode currentMode = ManipulationMode.Translate;
 
@@ -14,13 +15,14 @@ public class ObjectManipulator : MonoBehaviour
 
     void Start()
     {
+        // Inicializa la cámara principal y la escala inicial del objeto
         mainCamera = Camera.main;
         initialScale = transform.localScale;
     }
 
     void Update()
     {
-        // Permite cambiar el modo de manipulación mediante teclas:
+        // Permite cambiar el modo de manipulación mediante teclas
         if (Input.GetKeyDown(KeyCode.T))
         {
             currentMode = ManipulationMode.Translate;
@@ -40,17 +42,12 @@ public class ObjectManipulator : MonoBehaviour
         {
             currentMode = ManipulationMode.Send;
             Debug.Log("Modo: Send");
-
         }
-
-
-
     }
 
     void OnMouseDown()
     {
-
-    // Si es un clic izquierdo, inicia la manipulación
+        // Si es un clic izquierdo, inicia la manipulación
         if (Input.GetMouseButtonDown(0))
         {
             if (currentMode == ManipulationMode.Translate)
@@ -59,20 +56,17 @@ public class ObjectManipulator : MonoBehaviour
                 zCoord = mainCamera.WorldToScreenPoint(transform.position).z;
                 // Calcula el offset entre la posición del objeto y la posición del mouse en el mundo
                 offset = transform.position - GetMouseWorldPos();
-
-
             }
-
             else if (currentMode == ManipulationMode.Send)
             {
+                // Envía el objeto al cliente de chat
                 ChatClient.Instance.OnObjectClicked(gameObject);
                 return;
             }
-
         }
     }
 
-    // Convierte la posición del mouse (con la Z correcta) en posición en el mundo.
+    // Convierte la posición del mouse (con la Z correcta) en posición en el mundo
     Vector3 GetMouseWorldPos()
     {
         Vector3 mousePoint = Input.mousePosition;
@@ -82,20 +76,23 @@ public class ObjectManipulator : MonoBehaviour
 
     void OnMouseDrag()
     {
-        // Solo se procesa el arrastre si se mantiene presionado el botón izquierdo.
+        // Solo se procesa el arrastre si se mantiene presionado el botón izquierdo
         if (!Input.GetMouseButton(0)) return;
 
         switch (currentMode)
         {
             case ManipulationMode.Translate:
+                // Traduce el objeto según la posición del mouse
                 transform.position = GetMouseWorldPos() + offset;
                 break;
             case ManipulationMode.Rotate:
+                // Rota el objeto según el movimiento del mouse en el eje X
                 float rotationSpeed = 100f;
                 float mouseX = Input.GetAxis("Mouse X");
                 transform.Rotate(Vector3.up, mouseX * rotationSpeed * Time.deltaTime, Space.World);
                 break;
             case ManipulationMode.Scale:
+                // Escala el objeto según el movimiento del mouse en el eje Y
                 float scaleSpeed = 0.01f;
                 float mouseY = Input.GetAxis("Mouse Y");
                 Vector3 newScale = transform.localScale + Vector3.one * mouseY * scaleSpeed;
