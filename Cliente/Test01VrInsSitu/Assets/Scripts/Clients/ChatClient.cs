@@ -347,6 +347,8 @@ public class ChatClient : MonoBehaviour
         }
     }
 
+
+
     private string GetMimeType(string filePath)
     {
         string extension = Path.GetExtension(filePath).ToLower();

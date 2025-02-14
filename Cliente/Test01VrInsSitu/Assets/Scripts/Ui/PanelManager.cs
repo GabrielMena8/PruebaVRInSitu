@@ -408,7 +408,7 @@ public class PanelManager : MonoBehaviour
         {
             Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
             if (uiAlertManager != null)
-                uiAlertManager.ShowAlert("No se ha inicializado el contenedor del chat.", AlertType.Error);
+               //uiAlertManager.ShowAlert("No se ha inicializado el contenedor del chat.", AlertType.Error);
             return;
         }
         UIUtilities.CreateChatMessage(chatContent, "SystemMessage", message, messageColor, 18, TMPro.TextAlignmentOptions.Left, true);

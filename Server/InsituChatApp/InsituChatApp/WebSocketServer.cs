@@ -639,80 +639,89 @@
 
 
 
-  
+
 
     // Manejar el envío de archivos a un usuario
-        private void HandleSendFileUser(string[] parts)
+    private void HandleSendFileUser(string[] parts)
+    {
+        // Evitar que el usuario se envíe un archivo a sí mismo
+        if (userName.Equals(parts[1], StringComparison.OrdinalIgnoreCase))
         {
-            if (userName.Equals(parts[1], StringComparison.OrdinalIgnoreCase))
+            Send("ERROR: No puedes enviarte un archivo a ti mismo.");
+            return;
+        }
+
+        // El segundo parámetro es el usuario receptor
+        string targetUser = parts[1];
+
+        try
+        {
+            FileChunk chunk = JsonConvert.DeserializeObject<FileChunk>(parts[2]);
+            if (chunk == null)
             {
-                Send("ERROR: No puedes enviarte un archivo a ti mismo.");
+                Send("FILE_ERROR: No se pudo deserializar el fragmento.");
                 return;
             }
 
-            try
+            // Modificar la clave de transferencia para incluir receptor
+            string transferKey = $"{chunk.FileName}_{userName}_{targetUser}";
+            Console.WriteLine($"Recibiendo fragmento de archivo: {chunk.FileName}, Fragmento: {chunk.CurrentChunk}/{chunk.TotalChunks}, Clave: {transferKey}");
+
+            if (!fileTransfers.ContainsKey(transferKey))
             {
-                // Deserializamos el fragmento de archivo
-                FileChunk chunk = JsonConvert.DeserializeObject<FileChunk>(parts[2]);
-
-                // Construimos la clave de transferencia usando el nombre de archivo y el usuario
-                string transferKey = $"{chunk.FileName}_{userName}"; // Usar usuario origen como identificador único
-
-                Console.WriteLine($"Recibiendo fragmento de archivo: {chunk.FileName}, Fragmento: {chunk.CurrentChunk}/{chunk.TotalChunks}, Clave: {transferKey}");
-
-                // Verifica si el diccionario ya tiene la clave para este archivo
-                if (!fileTransfers.ContainsKey(transferKey))
-                {
-                    // Si no contiene la clave, la creamos
-                    Console.WriteLine("Creando nuevo rastreador para el archivo: " + transferKey);
-
-                    // Ruta temporal para fragmentos
-                    string tempFolder = Path.Combine(Path.GetTempPath(), "InsituChatApp");
-                    if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
-
-                    string tempFilePath = Path.Combine(tempFolder, $"{chunk.FileName}.temp");
-                    fileTransfers[transferKey] = new FileChunkTracker(chunk.TotalChunks, tempFilePath);
-                }
-                else
-                {
-                    Console.WriteLine("La clave ya existe en el diccionario. Usando clave existente.");
-                }
-
-                // Añadimos el fragmento al rastreador
-                fileTransfers[transferKey].AddChunk(chunk.CurrentChunk - 1, chunk.ContentBase64); // Ajuste al índice base 0
-
-                // Si todos los fragmentos se han recibido, reconstruir el archivo
-                if (fileTransfers[transferKey].IsComplete())
-                {
-                    Console.WriteLine($"Archivo completo recibido: {chunk.FileName}");
-
-                    // Combina los fragmentos y guarda el archivo
-                    byte[] fileBytes = fileTransfers[transferKey].CombineChunks();
-
-                    // Guardar el archivo en la carpeta Descargas
-                    string downloadsFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads\";
-                    string folderPath = Path.Combine(downloadsFolder, "InsituChatApp");
-                    if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
-
-                    string savePath = Path.Combine(folderPath, chunk.FileName);
-                    File.WriteAllBytes(savePath, fileBytes);
-
-                    // Limpiar los fragmentos y eliminar archivo temporal
-                    fileTransfers.Remove(transferKey);
-                    File.Delete(fileTransfers[transferKey].TempFilePath);
-
-                    Console.WriteLine($"Archivo {chunk.FileName} recibido y guardado en {savePath}");
-                    Send("FILE_RECEIVED SUCCESS");
-                }
-                else
-                {
-                    Console.WriteLine($"Fragmento {chunk.CurrentChunk}/{chunk.TotalChunks} recibido.");
-                }
+                Console.WriteLine("Creando nuevo tracker para: " + transferKey);
+                string tempFolder = Path.Combine(Path.GetTempPath(), "InsituChatApp");
+                if (!Directory.Exists(tempFolder))
+                    Directory.CreateDirectory(tempFolder);
+                string tempFilePath = Path.Combine(tempFolder, $"{chunk.FileName}.temp");
+                fileTransfers[transferKey] = new FileChunkTracker(chunk.TotalChunks, tempFilePath);
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Error al procesar el archivo: {ex.Message}");
-                Send("FILE_ERROR " + ex.Message);
+                Console.WriteLine("Tracker existente para: " + transferKey);
+            }
+
+            // Guardar el fragmento (índice basado en 0)
+            fileTransfers[transferKey].AddChunk(chunk.CurrentChunk - 1, chunk.ContentBase64);
+
+            if (fileTransfers[transferKey].IsComplete())
+            {
+                Console.WriteLine($"Archivo completo recibido: {chunk.FileName}");
+                byte[] fileBytes = fileTransfers[transferKey].CombineChunks();
+                string downloadsFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads\";
+                string folderPath = Path.Combine(downloadsFolder, "InsituChatApp");
+                if (!Directory.Exists(folderPath))
+                    Directory.CreateDirectory(folderPath);
+                string savePath = Path.Combine(folderPath, chunk.FileName);
+                File.WriteAllBytes(savePath, fileBytes);
+                Console.WriteLine($"Archivo {chunk.FileName} recibido y guardado en {savePath}");
+
+                // Enviar alerta de archivo recibido al usuario receptor
+                foreach (ChatRoom client in clients)
+                {
+                    if (client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
+                    {
+                        client.Send("FILE_RECEIVED SUCCESS");
+                    }
+                }
+
+                // Limpiar tracker y eliminar archivo temporal
+                var tracker = fileTransfers[transferKey];
+                fileTransfers.Remove(transferKey);
+                File.Delete(tracker.TempFilePath);
+            }
+            else
+            {
+                Console.WriteLine($"Fragmento {chunk.CurrentChunk}/{chunk.TotalChunks} recibido.");
             }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al procesar el archivo: {ex.Message}");
+            Send("FILE_ERROR " + ex.Message);
+        }
     }
+
+
+
+}
