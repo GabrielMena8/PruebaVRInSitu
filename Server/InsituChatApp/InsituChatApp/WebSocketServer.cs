@@ -1,50 +1,85 @@
-﻿    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
+﻿    using System.Diagnostics;
     using System.Timers;
     using WebSocketSharp;
     using WebSocketSharp.Server;
-using Newtonsoft.Json;
+    using Newtonsoft.Json;
 
-public enum UserStatus
+    /// <summary>
+    /// Enum para representar el estado del usuario.
+    /// </summary>
+    public enum UserStatus
     {
         Active,
         Typing,
         Inactive
     }
 
+    /// <summary>
+    /// Clase que representa una sala de chat y maneja la comunicación WebSocket.
+    /// </summary>
     public class ChatRoom : WebSocketBehavior
     {
+        // ==========================
+        // Variables estáticas
+        // ==========================
+
+        // Lista estática de todas las salas de chat.
         private static List<ChatRoomData> chatRooms = new List<ChatRoomData>();
+
+        // Diccionario estático de usuarios conectados.
         private static Dictionary<string, User> connectedUsers = new Dictionary<string, User>();
+
+        // Timer para verificar la inactividad de los usuarios.
         private static System.Timers.Timer? inactivityTimer;
+
+        // Cronómetro para medir el tiempo de actividad del servidor.
         private static Stopwatch serverUptime = Stopwatch.StartNew();
+
+        // Contadores de mensajes enviados y recibidos.
         private static int totalMessagesSent = 0;
         private static int totalMessagesReceived = 0;
+
+        // Lista de latencias de mensajes.
         private static List<long> latencies = new List<long>();
 
-    private static Dictionary<string, List<string>> fileChunksInProgress = new Dictionary<string, List<string>>();
+        // Diccionario para rastrear fragmentos de archivos en progreso.
+        private static Dictionary<string, List<string>> fileChunksInProgress = new Dictionary<string, List<string>>();
 
-    
+        // Diccionario para rastrear transferencias de archivos.
+        private static Dictionary<string, FileChunkTracker> fileTransfers = new Dictionary<string, FileChunkTracker>();
 
+        // Lista de conexiones activas para enviar mensajes (broadcast) a los clientes de la misma sala.
+        private static List<ChatRoom> clients = new List<ChatRoom>();
 
-    // NUEVO: Lista de conexiones activas para enviar mensajes (broadcast) a los clientes de la misma sala
-    private static List<ChatRoom> clients = new List<ChatRoom>();
+        // ==========================
+        // Variables de instancia
+        // ==========================
 
+        // Nombre de usuario y nombre de la sala para esta conexión.
         private string userName;
         private string roomName;
 
+        // ==========================
+        // Métodos de WebSocketBehavior
+        // ==========================
+
+        /// <summary>
+        /// Método llamado cuando se abre una nueva conexión WebSocket.
+        /// </summary>
         protected override void OnOpen()
         {
-            // Agregamos esta conexión a la lista de clientes
+            // Agregamos esta conexión a la lista de clientes.
             clients.Add(this);
             if (inactivityTimer == null)
             {
-                StartInactivityTimer();  // Iniciar el Timer solo la primera vez
+                StartInactivityTimer();  // Iniciar el Timer solo la primera vez.
             }
         }
 
+        /// <summary>
+        /// Método llamado cuando se recibe un mensaje a través del WebSocket.
+        /// </summary>
+        /// <param name="e">Argumentos del evento de mensaje.</param>
         protected override void OnMessage(MessageEventArgs e)
         {
             // Si el comando no es LOGIN y el usuario aún no se ha autenticado, se rechaza el comando.
@@ -101,17 +136,13 @@ public enum UserStatus
                         case "STATS":
                             HandleStats();
                             break;
-
                         case "SEND_OBJECT":
                             HandleSendObject(messageParts);
                             break;
-                      
                         case "SEND_FILE_USER":
                             HandleSendFileUser(messageParts);
                             break;
-                   
-
-                    default:
+                        default:
                             Send("Comando no reconocido. Escribe 'HELP' para ver la lista de comandos disponibles.");
                             break;
                     }
@@ -131,339 +162,338 @@ public enum UserStatus
         }
 
         protected override void OnClose(CloseEventArgs e)
-        {
-            clients.Remove(this);
-
-            if (connectedUsers.ContainsKey(userName))
             {
-                // Eliminar al usuario de la sala
-                ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
-                if (room != null)
+                clients.Remove(this);
+
+                if (connectedUsers.ContainsKey(userName))
                 {
-                    room.ConnectedUsers.RemoveAll(u => u.UserName == userName);
+                    // Eliminar al usuario de la sala
+                    ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+                    if (room != null)
+                    {
+                        room.ConnectedUsers.RemoveAll(u => u.UserName == userName);
+                    }
+
+                    // Notificar a todos los clientes en la misma sala que el usuario se ha desconectado
+                    foreach (ChatRoom client in clients)
+                    {
+                        if (client.roomName == this.roomName && client != this)
+                        {
+                            client.Send($"MESSAGE [Sistema]: {userName} se ha desconectado.");
+                        }
+                    }
+
+                    // Eliminar al usuario de la lista global de usuarios conectados
+                    connectedUsers.Remove(userName);
+                    Console.WriteLine($"{userName} se ha desconectado.");
+                    BroadcastConnectedUsers();
+                }
+            }
+
+
+
+            protected override void OnError(WebSocketSharp.ErrorEventArgs e)
+            {
+                LogError(new Exception(e.Message));
+            }
+
+            private void LogError(Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[ERROR] {DateTime.Now}: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                Console.ResetColor();
+            }
+
+            // Manejo del Login
+            private void HandleLogin(string[] messageParts)
+            {
+                if (messageParts.Length < 3)
+                {
+                    Send("LOGIN_ERROR Falta usuario o contraseña.");
+                    return;
                 }
 
-                // Notificar a todos los clientes en la misma sala que el usuario se ha desconectado
+                string user = messageParts[1];
+                string password = messageParts[2];
+
+                if (!connectedUsers.ContainsKey(user))
+                {
+                    string role = user == "admin" ? "admin" : "user";
+                    connectedUsers[user] = new User(user, role);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"{user} se ha registrado como {role}.");
+                    Console.ResetColor();
+                }
+
+                userName = user;
+                connectedUsers[user].LastActivity = DateTime.Now;
+                Send($"LOGIN_SUCCESS {connectedUsers[user].Role}");
+            }
+
+            // Manejo del Logout
+            private void HandleLogout()
+            {
+                if (connectedUsers.ContainsKey(userName))
+                {
+                    connectedUsers.Remove(userName);
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"{userName} se ha desconectado.");
+                    Console.ResetColor();
+                    Send("LOGOUT_SUCCESS");
+                }
+                else
+                {
+                    Send("LOGOUT_ERROR Usuario no encontrado.");
+                }
+            }
+
+
+
+            // Crear Sala
+            private void HandleCreateRoom(string[] messageParts)
+            {
+                if (connectedUsers[userName].Role != "admin")
+                {
+                    Send("ERROR No tienes permisos para crear salas.");
+                    return;
+                }
+
+                if (messageParts.Length < 2)
+                {
+                    Send("ERROR Falta el nombre de la sala.");
+                    return;
+                }
+
+                string newRoom = messageParts[1];
+                if (!chatRooms.Any(r => r.RoomName == newRoom))
+                {
+                    chatRooms.Add(new ChatRoomData(newRoom));
+                    Send($"ROOM_CREATED {newRoom}");
+                }
+                else
+                {
+                    Send("ERROR La sala ya existe.");
+                }
+            }
+
+            private void HandleDeleteRoom(string[] messageParts)
+            {
+                if (connectedUsers[userName].Role != "admin")
+                {
+                    Send("ERROR No tienes permisos para eliminar salas.");
+                    return;
+                }
+
+                if (messageParts.Length < 2)
+                {
+                    Send("ERROR Falta el nombre de la sala.");
+                    return;
+                }
+
+                string roomToDelete = messageParts[1];
+                ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomToDelete);
+
+                if (room != null)
+                {
+                    // Notificar a todos los usuarios de la sala que será eliminada
+                    foreach (ChatRoom client in clients)
+                    {
+                        if (client.roomName == room.RoomName)
+                        {
+                            client.Send($"MESSAGE [Sistema]: La sala '{room.RoomName}' ha sido eliminada.");
+                            client.roomName = null;  // Eliminar la referencia a la sala para este cliente
+                        }
+                    }
+
+                    // Eliminar a todos los usuarios de la sala
+                    room.ConnectedUsers.Clear();
+
+                    // Eliminar la sala de la lista global de salas
+                    chatRooms.Remove(room);
+                    Console.WriteLine($"La sala '{room.RoomName}' ha sido eliminada.");
+                }
+                else
+                {
+                    Send("ERROR La sala no existe.");
+                }
+            }
+
+
+            // Unirse a una Sala
+            private void HandleJoinRoom(string[] messageParts)
+            {
+                if (messageParts.Length < 2)
+                {
+                    Send("ERROR Falta el nombre de la sala.");
+                    return;
+                }
+
+                string requestedRoom = messageParts[1];
+                ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == requestedRoom);
+
+                if (room == null)
+                {
+                    Send("ERROR La sala no existe.");
+                    return;
+                }
+
+                if (!room.ConnectedUsers.Any(u => u.UserName == userName))
+                {
+                    room.ConnectedUsers.Add(connectedUsers[userName]);
+                }
+
+                roomName = requestedRoom;
+                Send($"JOINED_ROOM {roomName}");
+
+                // NUEVO: Notificar a todos los clientes en la misma sala que este usuario se ha unido
                 foreach (ChatRoom client in clients)
                 {
                     if (client.roomName == this.roomName && client != this)
                     {
-                        client.Send($"MESSAGE [Sistema]: {userName} se ha desconectado.");
+                        client.Send($"MESSAGE [Sistema]: {userName} se ha unido a la sala.");
                     }
                 }
 
-                // Eliminar al usuario de la lista global de usuarios conectados
-                connectedUsers.Remove(userName);
-                Console.WriteLine($"{userName} se ha desconectado.");
+                Console.WriteLine($"{userName} se ha unido a la sala {roomName}.");
                 BroadcastConnectedUsers();
             }
-        }
 
 
-
-        protected override void OnError(WebSocketSharp.ErrorEventArgs e)
-        {
-            LogError(new Exception(e.Message));
-        }
-
-        private void LogError(Exception ex)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[ERROR] {DateTime.Now}: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
-            Console.ResetColor();
-        }
-
-        // Manejo del Login
-        private void HandleLogin(string[] messageParts)
-        {
-            if (messageParts.Length < 3)
+            // Eliminar Usuario
+            private void HandleDeleteUser(string[] messageParts)
             {
-                Send("LOGIN_ERROR Falta usuario o contraseña.");
-                return;
-            }
-
-            string user = messageParts[1];
-            string password = messageParts[2];
-
-            if (!connectedUsers.ContainsKey(user))
-            {
-                string role = user == "admin" ? "admin" : "user";
-                connectedUsers[user] = new User(user, role);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"{user} se ha registrado como {role}.");
-                Console.ResetColor();
-            }
-
-            userName = user;
-            connectedUsers[user].LastActivity = DateTime.Now;
-            Send($"LOGIN_SUCCESS {connectedUsers[user].Role}");
-        }
-
-        // Manejo del Logout
-        private void HandleLogout()
-        {
-            if (connectedUsers.ContainsKey(userName))
-            {
-                connectedUsers.Remove(userName);
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"{userName} se ha desconectado.");
-                Console.ResetColor();
-                Send("LOGOUT_SUCCESS");
-            }
-            else
-            {
-                Send("LOGOUT_ERROR Usuario no encontrado.");
-            }
-        }
-
-
-
-        // Crear Sala
-        private void HandleCreateRoom(string[] messageParts)
-        {
-            if (connectedUsers[userName].Role != "admin")
-            {
-                Send("ERROR No tienes permisos para crear salas.");
-                return;
-            }
-
-            if (messageParts.Length < 2)
-            {
-                Send("ERROR Falta el nombre de la sala.");
-                return;
-            }
-
-            string newRoom = messageParts[1];
-            if (!chatRooms.Any(r => r.RoomName == newRoom))
-            {
-                chatRooms.Add(new ChatRoomData(newRoom));
-                Send($"ROOM_CREATED {newRoom}");
-            }
-            else
-            {
-                Send("ERROR La sala ya existe.");
-            }
-        }
-
-        private void HandleDeleteRoom(string[] messageParts)
-        {
-            if (connectedUsers[userName].Role != "admin")
-            {
-                Send("ERROR No tienes permisos para eliminar salas.");
-                return;
-            }
-
-            if (messageParts.Length < 2)
-            {
-                Send("ERROR Falta el nombre de la sala.");
-                return;
-            }
-
-            string roomToDelete = messageParts[1];
-            ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomToDelete);
-
-            if (room != null)
-            {
-                // Notificar a todos los usuarios de la sala que será eliminada
-                foreach (ChatRoom client in clients)
+                if (connectedUsers[userName].Role != "admin")
                 {
-                    if (client.roomName == room.RoomName)
-                    {
-                        client.Send($"MESSAGE [Sistema]: La sala '{room.RoomName}' ha sido eliminada.");
-                        client.roomName = null;  // Eliminar la referencia a la sala para este cliente
-                    }
+                    Send("ERROR No tienes permisos para eliminar usuarios.");
+                    return;
                 }
 
-                // Eliminar a todos los usuarios de la sala
-                room.ConnectedUsers.Clear();
-
-                // Eliminar la sala de la lista global de salas
-                chatRooms.Remove(room);
-                Console.WriteLine($"La sala '{room.RoomName}' ha sido eliminada.");
-            }
-            else
-            {
-                Send("ERROR La sala no existe.");
-            }
-        }
-
-
-        // Unirse a una Sala
-        private void HandleJoinRoom(string[] messageParts)
-        {
-            if (messageParts.Length < 2)
-            {
-                Send("ERROR Falta el nombre de la sala.");
-                return;
-            }
-
-            string requestedRoom = messageParts[1];
-            ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == requestedRoom);
-
-            if (room == null)
-            {
-                Send("ERROR La sala no existe.");
-                return;
-            }
-
-            if (!room.ConnectedUsers.Any(u => u.UserName == userName))
-            {
-                room.ConnectedUsers.Add(connectedUsers[userName]);
-            }
-
-            roomName = requestedRoom;
-            Send($"JOINED_ROOM {roomName}");
-
-            // NUEVO: Notificar a todos los clientes en la misma sala que este usuario se ha unido
-            foreach (ChatRoom client in clients)
-            {
-                if (client.roomName == this.roomName && client != this)
+                if (messageParts.Length < 2)
                 {
-                    client.Send($"MESSAGE [Sistema]: {userName} se ha unido a la sala.");
+                    Send("ERROR Falta el nombre del usuario.");
+                    return;
+                }
+
+                string userToDelete = messageParts[1];
+
+                if (connectedUsers.ContainsKey(userToDelete))
+                {
+                    connectedUsers.Remove(userToDelete);
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"{userToDelete} ha sido eliminado.");
+                    Console.ResetColor();
+                    Send($"USER_DELETED {userToDelete}");
+                }
+                else
+                {
+                    Send("ERROR El usuario no existe.");
                 }
             }
 
-            Console.WriteLine($"{userName} se ha unido a la sala {roomName}.");
-            BroadcastConnectedUsers();
-        }
-
-
-        // Eliminar Usuario
-        private void HandleDeleteUser(string[] messageParts)
-        {
-            if (connectedUsers[userName].Role != "admin")
+            // Mostrar las salas y usuarios conectados
+            private void HandleViewRooms()
             {
-                Send("ERROR No tienes permisos para eliminar usuarios.");
-                return;
-            }
-
-            if (messageParts.Length < 2)
-            {
-                Send("ERROR Falta el nombre del usuario.");
-                return;
-            }
-
-            string userToDelete = messageParts[1];
-
-            if (connectedUsers.ContainsKey(userToDelete))
-            {
-                connectedUsers.Remove(userToDelete);
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"{userToDelete} ha sido eliminado.");
-                Console.ResetColor();
-                Send($"USER_DELETED {userToDelete}");
-            }
-            else
-            {
-                Send("ERROR El usuario no existe.");
-            }
-        }
-
-        // Mostrar las salas y usuarios conectados
-        private void HandleViewRooms()
-        {
-            if (chatRooms.Count == 0)
-            {
-                Send("No hay salas disponibles.");
-                return;
-            }
-
-            string roomInfo = "";
-            foreach (var room in chatRooms)
-            {
-                string usersInRoom = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
-                roomInfo += $"Sala: {room.RoomName} - Usuarios: {usersInRoom}\n";
-            }
-
-            Send($"ROOMS_INFO:\n{roomInfo}");
-        }
-
-        // Ver usuarios conectados por sala
-        private void HandleViewConnected()
-        {
-            // Si el cliente no está en ninguna sala, se notifica el error.
-            if (string.IsNullOrEmpty(roomName))
-            {
-                Send("ERROR: No estás en ninguna sala.");
-                return;
-            }
-
-            // Buscar la sala en la que se encuentra el cliente.
-            ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
-            if (room == null)
-            {
-                Send("ERROR: Sala no encontrada.");
-                return;
-            }
-
-            // Filtrar y formatear la lista de usuarios activos (con estado Active).
-            string usersInRoom = string.Join(", ", room.ConnectedUsers
-                                                        .Where(u => u.Status == UserStatus.Active)
-                                                        .Select(u => $"{u.UserName} ({u.Status})"));
-
-            // Envía un mensaje que comienza con "CONNECTED_USERS:" seguido de la información.
-            Send($"CONNECTED_USERS:\nSala: {room.RoomName} - Usuarios Activos: {usersInRoom}");
-        }
-
-
-
-    // Manejar estado "escribiendo"
-
-    private void HandleTyping()
-        {
-            // Actualiza el estado del usuario
-            if (!string.IsNullOrEmpty(userName) && connectedUsers.ContainsKey(userName))
-            {
-                connectedUsers[userName].Status = UserStatus.Typing;
-                connectedUsers[userName].LastActivity = DateTime.Now;
-
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"{userName} está escribiendo...");
-                Console.ResetColor();
-
-                // Difundir el estado TYPING a los demás clientes en la misma sala
-                foreach (ChatRoom client in clients)
+                if (chatRooms.Count == 0)
                 {
-                    if (client.roomName == this.roomName && client.userName != this.userName)
+                    Send("No hay salas disponibles.");
+                    return;
+                }
+
+                string roomInfo = "";
+                foreach (var room in chatRooms)
+                {
+                    string usersInRoom = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
+                    roomInfo += $"Sala: {room.RoomName} - Usuarios: {usersInRoom}\n";
+                }
+
+                Send($"ROOMS_INFO:\n{roomInfo}");
+            }
+
+            // Ver usuarios conectados por sala
+            private void HandleViewConnected()
+            {
+                // Si el cliente no está en ninguna sala, se notifica el error.
+                if (string.IsNullOrEmpty(roomName))
+                {
+                    Send("ERROR: No estás en ninguna sala.");
+                    return;
+                }
+
+                // Buscar la sala en la que se encuentra el cliente.
+                ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+                if (room == null)
+                {
+                    Send("ERROR: Sala no encontrada.");
+                    return;
+                }
+
+                // Filtrar y formatear la lista de usuarios activos (con estado Active).
+                string usersInRoom = string.Join(", ", room.ConnectedUsers
+                                                            .Where(u => u.Status == UserStatus.Active)
+                                                            .Select(u => $"{u.UserName} ({u.Status})"));
+
+                // Envía un mensaje que comienza con "CONNECTED_USERS:" seguido de la información.
+                Send($"CONNECTED_USERS:\nSala: {room.RoomName} - Usuarios Activos: {usersInRoom}");
+            }
+
+
+
+        // Manejar estado "escribiendo"
+
+        private void HandleTyping()
+            {
+                // Actualiza el estado del usuario
+                if (!string.IsNullOrEmpty(userName) && connectedUsers.ContainsKey(userName))
+                {
+                    connectedUsers[userName].Status = UserStatus.Typing;
+                    connectedUsers[userName].LastActivity = DateTime.Now;
+
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"{userName} está escribiendo...");
+                    Console.ResetColor();
+
+                    // Difundir el estado TYPING a los demás clientes en la misma sala
+                    foreach (ChatRoom client in clients)
                     {
-                        client.Send("TYPING " + userName);
+                        if (client.roomName == this.roomName && client.userName != this.userName)
+                        {
+                            client.Send("TYPING " + userName);
+                        }
                     }
                 }
             }
-        }
 
 
-        private void BroadcastConnectedUsers()
-        {
-            // Buscar la sala a la que pertenece el cliente actual.
-            ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
-            if (room == null)
-                return;
-
-            // Construir la cadena de usuarios conectados.
-            string users = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
-            string message = $"CONNECTED_USERS:\nSala: {roomName} - Usuarios Activos: {users}";
-
-            // Difundir el mensaje a todos los clientes en la misma sala.
-            foreach (ChatRoom client in clients)
+            private void BroadcastConnectedUsers()
             {
-                if (client.roomName == roomName)
+                // Buscar la sala a la que pertenece el cliente actual.
+                ChatRoomData room = chatRooms.FirstOrDefault(r => r.RoomName == roomName);
+                if (room == null)
+                    return;
+
+                // Construir la cadena de usuarios conectados.
+                string users = string.Join(", ", room.ConnectedUsers.Select(u => $"{u.UserName} ({u.Status})"));
+                string message = $"CONNECTED_USERS:\nSala: {roomName} - Usuarios Activos: {users}";
+
+                // Difundir el mensaje a todos los clientes en la misma sala.
+                foreach (ChatRoom client in clients)
                 {
-                    client.Send(message);
+                    if (client.roomName == roomName)
+                    {
+                        client.Send(message);
+                    }
                 }
             }
-        }
 
-
-
-        // Manejar mensaje normal y difundirlo a los clientes de la misma sala
         // Manejar mensaje normal y difundirlo a los clientes de la misma sala
         private void HandleMessage(string message)
         {
             // Actualiza el estado del usuario a Active y su última actividad
             connectedUsers[userName].Status = UserStatus.Active;
             connectedUsers[userName].LastActivity = DateTime.Now;
+
+            // Log del mensaje recibido
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine($"[{userName}] {message}");
             Console.ResetColor();
@@ -486,97 +516,96 @@ public enum UserStatus
         }
 
 
-        /// <summary>
-        /// Maneja el comando SEND_OBJECT.
-        /// Formato esperado: "SEND_OBJECT <targetUser> <objectDataJson>"
-        /// </summary>
-        private void HandleSendObject(string[] fullMessage)
-        {
-            if (fullMessage.Length < 3)
+            /// <summary>
+            /// Maneja el comando SEND_OBJECT.
+            /// Formato esperado: "SEND_OBJECT <targetUser> <objectDataJson>"
+            /// </summary>
+            private void HandleSendObject(string[] fullMessage)
             {
-                Send("ERROR: Formato de SEND_OBJECT incorrecto.");
-                return;
-            }
-
-            string targetUser = fullMessage[1].Trim();
-            string encodedJson = fullMessage[2];
-
-            bool enviado = false;
-            foreach (ChatRoom client in clients)
-            {
-                if (client.userName == this.userName)
+                if (fullMessage.Length < 3)
                 {
-                    continue;  // No enviar el objeto al usuario que lo envió
+                    Send("ERROR: Formato de SEND_OBJECT incorrecto.");
+                    return;
                 }
 
-                if (client.roomName == this.roomName && client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
+                string targetUser = fullMessage[1].Trim();
+                string encodedJson = fullMessage[2];
+
+                bool enviado = false;
+                foreach (ChatRoom client in clients)
                 {
-                    client.Send("OBJECT_DIRECT " + encodedJson);
-                    enviado = true;
-                    break;
+                    if (client.userName == this.userName)
+                    {
+                        continue;  // No enviar el objeto al usuario que lo envió
+                    }
+
+                    if (client.roomName == this.roomName && client.userName.Equals(targetUser, StringComparison.OrdinalIgnoreCase))
+                    {
+                        client.Send("OBJECT_DIRECT " + encodedJson);
+                        enviado = true;
+                        break;
+                    }
+                }
+
+                if (!enviado)
+                {
+                    Send("ERROR: Usuario destino no encontrado en la sala.");
                 }
             }
 
-            if (!enviado)
+
+
+
+
+            // Manejar el comando HELP
+            private void HandleHelp()
             {
-                Send("ERROR: Usuario destino no encontrado en la sala.");
+                string helpMessage = "Comandos disponibles:\n" +
+                                     "LOGIN <usuario> <contraseña> - Iniciar sesión\n" +
+                                     "LOGOUT - Cerrar sesión\n" +
+                                     "CREATE_ROOM <nombre_sala> - Crear una nueva sala (solo admin)\n" +
+                                     "DELETE_ROOM <nombre_sala> - Eliminar una sala (solo admin)\n" +
+                                     "JOIN_ROOM <nombre_sala> - Unirse a una sala\n" +
+                                     "DELETE_USER <usuario> - Eliminar un usuario (solo admin)\n" +
+                                     "VIEW_ROOMS - Ver todas las salas disponibles\n" +
+                                     "VIEW_CONNECTED - Ver usuarios conectados\n" +
+                                     "TYPING - Indicar que el usuario está escribiendo\n" +
+                                     "MESSAGE <mensaje> - Enviar un mensaje a la sala\n" +
+                                     "HELP - Ver la lista de comandos disponibles\n" +
+                                     "STATS - Ver estadísticas del servidor";
+                Send(helpMessage);
             }
-        }
 
+            // Manejar el comando STATS
+            private void HandleStats()
+            {
+                double averageLatency = latencies.Count > 0 ? latencies.Average() : 0;
+                string statsMessage = $"Estadísticas del servidor:\n" +
+                                      $"Tiempo de actividad: {serverUptime.Elapsed}\n" +
+                                      $"Mensajes enviados: {totalMessagesSent}\n" +
+                                      $"Mensajes recibidos: {totalMessagesReceived}\n" +
+                                      $"Latencia promedio: {averageLatency} ms";
+                Send(statsMessage);
+            }
 
+            // Iniciar el Timer para verificar la inactividad
+            private void StartInactivityTimer()
+            {
+                inactivityTimer = new System.Timers.Timer(10000);  // Verificar cada 10 segundos
+                inactivityTimer.Elapsed += CheckUserInactivity;
+                inactivityTimer.AutoReset = true;
+                inactivityTimer.Enabled = true;
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine("Inactivity Timer iniciado.");
+                Console.ResetColor();
+            }
 
-
-
-
-
-        // Manejar el comando HELP
-        private void HandleHelp()
-        {
-            string helpMessage = "Comandos disponibles:\n" +
-                                 "LOGIN <usuario> <contraseña> - Iniciar sesión\n" +
-                                 "LOGOUT - Cerrar sesión\n" +
-                                 "CREATE_ROOM <nombre_sala> - Crear una nueva sala (solo admin)\n" +
-                                 "DELETE_ROOM <nombre_sala> - Eliminar una sala (solo admin)\n" +
-                                 "JOIN_ROOM <nombre_sala> - Unirse a una sala\n" +
-                                 "DELETE_USER <usuario> - Eliminar un usuario (solo admin)\n" +
-                                 "VIEW_ROOMS - Ver todas las salas disponibles\n" +
-                                 "VIEW_CONNECTED - Ver usuarios conectados\n" +
-                                 "TYPING - Indicar que el usuario está escribiendo\n" +
-                                 "MESSAGE <mensaje> - Enviar un mensaje a la sala\n" +
-                                 "HELP - Ver la lista de comandos disponibles\n" +
-                                 "STATS - Ver estadísticas del servidor";
-            Send(helpMessage);
-        }
-
-        // Manejar el comando STATS
-        private void HandleStats()
-        {
-            double averageLatency = latencies.Count > 0 ? latencies.Average() : 0;
-            string statsMessage = $"Estadísticas del servidor:\n" +
-                                  $"Tiempo de actividad: {serverUptime.Elapsed}\n" +
-                                  $"Mensajes enviados: {totalMessagesSent}\n" +
-                                  $"Mensajes recibidos: {totalMessagesReceived}\n" +
-                                  $"Latencia promedio: {averageLatency} ms";
-            Send(statsMessage);
-        }
-
-        // Iniciar el Timer para verificar la inactividad
-        private void StartInactivityTimer()
-        {
-            inactivityTimer = new System.Timers.Timer(10000);  // Verificar cada 10 segundos
-            inactivityTimer.Elapsed += CheckUserInactivity;
-            inactivityTimer.AutoReset = true;
-            inactivityTimer.Enabled = true;
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("Inactivity Timer iniciado.");
-            Console.ResetColor();
-        }
-
+        // Verificar la inactividad de los usuarios
         private void CheckUserInactivity(object source, ElapsedEventArgs e)
         {
             foreach (var user in connectedUsers.Values)
             {
-                if (user.IsInactive(60))  //  segundos de inactividad
+                if (user.IsInactive(60))  // 60 segundos de inactividad
                 {
                     if (user.Status != UserStatus.Inactive)
                     {
@@ -596,193 +625,94 @@ public enum UserStatus
             }
         }
 
-    //Handle de files
-
-    // Método para escapar las comillas y otros caracteres especiales
-    private string EscapeJsonString(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        return input.Replace("\\", "\\\\")  // Escapa barras invertidas
-                    .Replace("\"", "\\\"")  // Escapa comillas dobles
-                    .Replace("\n", "\\n")   // Escapa saltos de línea
-                    .Replace("\r", "\\r");  // Escapa retornos de carro
-    }
-
-
-
-    private static Dictionary<string, FileChunkTracker> fileTransfers = new Dictionary<string, FileChunkTracker>();
-
-    private void HandleSendFileUser(string[] parts)
-    {
-        try
+        // Método para escapar las comillas y otros caracteres especiales en JSON
+        private string EscapeJsonString(string input)
         {
-            // Deserializamos el fragmento de archivo
-            FileChunk chunk = JsonConvert.DeserializeObject<FileChunk>(parts[2]);
+            if (string.IsNullOrEmpty(input))
+                return input;
 
-            // Construimos la clave de transferencia usando el nombre de archivo y el usuario
-            string transferKey = $"{chunk.FileName}_{userName}"; // Usar usuario origen como identificador único
-
-            Console.WriteLine($"Recibiendo fragmento de archivo: {chunk.FileName}, Fragmento: {chunk.CurrentChunk}/{chunk.TotalChunks}, Clave: {transferKey}");
-
-            // Verifica si el diccionario ya tiene la clave para este archivo
-            if (!fileTransfers.ContainsKey(transferKey))
-            {
-                // Si no contiene la clave, la creamos
-                Console.WriteLine("Creando nuevo rastreador para el archivo: " + transferKey);
-
-                // Ruta temporal para fragmentos
-                string tempFolder = Path.Combine(Path.GetTempPath(), "InsituChatApp");
-                if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
-
-                string tempFilePath = Path.Combine(tempFolder, $"{chunk.FileName}.temp");
-                fileTransfers[transferKey] = new FileChunkTracker(chunk.TotalChunks, tempFilePath);
-            }
-            else
-            {
-                Console.WriteLine("La clave ya existe en el diccionario. Usando clave existente.");
-            }
-
-            // Añadimos el fragmento al rastreador
-            fileTransfers[transferKey].AddChunk(chunk.CurrentChunk - 1, chunk.ContentBase64); // Ajuste al índice base 0
-
-            // Si todos los fragmentos se han recibido, reconstruir el archivo
-            if (fileTransfers[transferKey].IsComplete())
-            {
-                Console.WriteLine($"Archivo completo recibido: {chunk.FileName}");
-
-                // Combina los fragmentos y guarda el archivo
-                byte[] fileBytes = fileTransfers[transferKey].CombineChunks();
-
-                // Guardar el archivo en la carpeta Descargas
-                string downloadsFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads\";
-                string folderPath = Path.Combine(downloadsFolder, "InsituChatApp");
-                if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
-
-                string savePath = Path.Combine(folderPath, chunk.FileName);
-                File.WriteAllBytes(savePath, fileBytes);
-
-                // Limpiar los fragmentos y eliminar archivo temporal
-                fileTransfers.Remove(transferKey);
-                File.Delete(fileTransfers[transferKey].TempFilePath);
-
-                Console.WriteLine($"Archivo {chunk.FileName} recibido y guardado en {savePath}");
-                Send("FILE_RECEIVED SUCCESS");
-            }
-            else
-            {
-                Console.WriteLine($"Fragmento {chunk.CurrentChunk}/{chunk.TotalChunks} recibido.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error al procesar el archivo: {ex.Message}");
-            Send("FILE_ERROR " + ex.Message);
-        }
-    }
-
-
-
-
-
-
-
-
-
-
-
-    public class FileChunkTracker
-    {
-        public string[] Chunks { get; }
-        private int _receivedCount = 0;
-
-        // Ruta temporal del archivo
-        public string TempFilePath { get; }
-
-        public FileChunkTracker(int totalChunks, string tempFilePath)
-        {
-            Chunks = new string[totalChunks];
-            TempFilePath = tempFilePath;
+            return input.Replace("\\", "\\\\")  // Escapa barras invertidas
+                        .Replace("\"", "\\\"")  // Escapa comillas dobles
+                        .Replace("\n", "\\n")   // Escapa saltos de línea
+                        .Replace("\r", "\\r");  // Escapa retornos de carro
         }
 
-        public void AddChunk(int index, string content)
+
+
+  
+
+    // Manejar el envío de archivos a un usuario
+        private void HandleSendFileUser(string[] parts)
         {
-            if (index >= 0 && index < Chunks.Length)
+            if (userName.Equals(parts[1], StringComparison.OrdinalIgnoreCase))
             {
-                Chunks[index] = content;
-                _receivedCount++;
+                Send("ERROR: No puedes enviarte un archivo a ti mismo.");
+                return;
             }
-        }
 
-        public bool IsComplete() => _receivedCount == Chunks.Length;
-
-        // Método para combinar los fragmentos y obtener los datos completos del archivo
-        public byte[] CombineChunks()
-        {
-            // Unimos todos los fragmentos en un solo string
-            string combinedContent = string.Join("", Chunks);
-            return Convert.FromBase64String(combinedContent);  // Convertimos el contenido combinado de nuevo a bytes
-        }
-    }
-
-
-
-    // Manejar el comando STATS (ya implementado arriba)
-}
-
-class InsituChatServer
-    {
-        static void Main(string[] args)
-        {
-            WebSocketServer wssv = new WebSocketServer("ws://127.0.0.1:8080");
-
-            wssv.AddWebSocketService<ChatRoom>("/chat");
-
-            bool running = true;
-            while (running)
+            try
             {
-                Console.WriteLine("Escribe 'start' para iniciar el servidor, 'stop' para detenerlo, 'exit' para salir:");
-                string command = Console.ReadLine().ToLower();
+                // Deserializamos el fragmento de archivo
+                FileChunk chunk = JsonConvert.DeserializeObject<FileChunk>(parts[2]);
 
-                switch (command)
+                // Construimos la clave de transferencia usando el nombre de archivo y el usuario
+                string transferKey = $"{chunk.FileName}_{userName}"; // Usar usuario origen como identificador único
+
+                Console.WriteLine($"Recibiendo fragmento de archivo: {chunk.FileName}, Fragmento: {chunk.CurrentChunk}/{chunk.TotalChunks}, Clave: {transferKey}");
+
+                // Verifica si el diccionario ya tiene la clave para este archivo
+                if (!fileTransfers.ContainsKey(transferKey))
                 {
-                    case "start":
-                        if (!wssv.IsListening)
-                        {
-                            wssv.Start();
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("Servidor WebSocket iniciado.");
-                            Console.ResetColor();
-                        }
-                        break;
-                    case "stop":
-                        if (wssv.IsListening)
-                        {
-                            wssv.Stop();
-                            Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine("Servidor detenido.");
-                            Console.ResetColor();
-                        }
-                        break;
-                    case "exit":
-                        if (wssv.IsListening)
-                        {
-                            wssv.Stop();
-                        }
-                        running = false;
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("Saliendo...");
-                        Console.ResetColor();
-                        break;
-                    default:
-                        Console.ForegroundColor = ConsoleColor.DarkRed;
-                        Console.WriteLine("Comando no reconocido.");
-                        Console.ResetColor();
-                        break;
+                    // Si no contiene la clave, la creamos
+                    Console.WriteLine("Creando nuevo rastreador para el archivo: " + transferKey);
+
+                    // Ruta temporal para fragmentos
+                    string tempFolder = Path.Combine(Path.GetTempPath(), "InsituChatApp");
+                    if (!Directory.Exists(tempFolder)) Directory.CreateDirectory(tempFolder);
+
+                    string tempFilePath = Path.Combine(tempFolder, $"{chunk.FileName}.temp");
+                    fileTransfers[transferKey] = new FileChunkTracker(chunk.TotalChunks, tempFilePath);
+                }
+                else
+                {
+                    Console.WriteLine("La clave ya existe en el diccionario. Usando clave existente.");
+                }
+
+                // Añadimos el fragmento al rastreador
+                fileTransfers[transferKey].AddChunk(chunk.CurrentChunk - 1, chunk.ContentBase64); // Ajuste al índice base 0
+
+                // Si todos los fragmentos se han recibido, reconstruir el archivo
+                if (fileTransfers[transferKey].IsComplete())
+                {
+                    Console.WriteLine($"Archivo completo recibido: {chunk.FileName}");
+
+                    // Combina los fragmentos y guarda el archivo
+                    byte[] fileBytes = fileTransfers[transferKey].CombineChunks();
+
+                    // Guardar el archivo en la carpeta Descargas
+                    string downloadsFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads\";
+                    string folderPath = Path.Combine(downloadsFolder, "InsituChatApp");
+                    if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
+
+                    string savePath = Path.Combine(folderPath, chunk.FileName);
+                    File.WriteAllBytes(savePath, fileBytes);
+
+                    // Limpiar los fragmentos y eliminar archivo temporal
+                    fileTransfers.Remove(transferKey);
+                    File.Delete(fileTransfers[transferKey].TempFilePath);
+
+                    Console.WriteLine($"Archivo {chunk.FileName} recibido y guardado en {savePath}");
+                    Send("FILE_RECEIVED SUCCESS");
+                }
+                else
+                {
+                    Console.WriteLine($"Fragmento {chunk.CurrentChunk}/{chunk.TotalChunks} recibido.");
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al procesar el archivo: {ex.Message}");
+                Send("FILE_ERROR " + ex.Message);
+            }
         }
     }
-
-

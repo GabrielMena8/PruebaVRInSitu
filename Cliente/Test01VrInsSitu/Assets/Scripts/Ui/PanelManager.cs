@@ -17,11 +17,11 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject contextMenuPanel;
     [SerializeField] private GameObject selectedFilesPanel;
 
+    [Header("Referencias a la UI")]
+    public UIAlertManager uiAlertManager; // Asegúrate de asignar este componente en el Inspector
+
     public List<string> currentConnectedUsernames = new List<string>();
     public List<string> currentSelectedFilePaths = new List<string>();
-
-    
-
 
     private string currentRole = "user";  // Rol actual: "user" o "admin"
     private TextMeshProUGUI roomListText; // Texto para mostrar la lista de salas
@@ -141,6 +141,8 @@ public class PanelManager : MonoBehaviour
         else
         {
             Debug.LogError("El nombre de la sala es nulo o vacío.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("El nombre de la sala es nulo o vacío.", AlertType.Error);
         }
         ConfigureFrontPanel();
     }
@@ -159,6 +161,12 @@ public class PanelManager : MonoBehaviour
         if (!string.IsNullOrEmpty(roomName))
         {
             ChatClient.Instance.DeleteRoom(roomName);
+        }
+        else
+        {
+            Debug.LogError("El nombre de la sala es nulo o vacío.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("El nombre de la sala es nulo o vacío.", AlertType.Error);
         }
         ConfigureFrontPanel();
     }
@@ -182,6 +190,8 @@ public class PanelManager : MonoBehaviour
         else
         {
             Debug.LogError("El nombre de la sala es nulo o vacío.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("El nombre de la sala es nulo o vacío.", AlertType.Error);
         }
     }
 
@@ -255,7 +265,6 @@ public class PanelManager : MonoBehaviour
         Debug.Log("Lista de salas mostrada correctamente.");
     }
 
-
     /////////////////////////////////////////////////////////
     // Chat y Mensajes
     /////////////////////////////////////////////////////////
@@ -280,7 +289,6 @@ public class PanelManager : MonoBehaviour
         Transform scrollContent = UIUtilities.CreateScrollViewWithVerticalLayout(
             parent: chatPanel.transform,
             scrollViewName: "ChatScrollView"
-        // size: new Vector2(0, 0) // se ajusta, o si prefieres un size fijo, p.ej. new Vector2(400, 300)
         );
 
         // Guardamos ese contenedor en chatContent para poder agregar mensajes
@@ -302,7 +310,6 @@ public class PanelManager : MonoBehaviour
         inputRect.offsetMin = Vector2.zero;
         inputRect.offsetMax = Vector2.zero;
 
-
         // Botón "Enviar"
         UIUtilities.CreateButton(
             chatPanel.transform,
@@ -313,32 +320,28 @@ public class PanelManager : MonoBehaviour
                 if (!string.IsNullOrEmpty(message))
                 {
                     ChatClient.Instance.SendMessageToRoom(message);
-                   
-                    
-        
                 }
             },
             new Vector2(100, 40)
         );
 
         UIUtilities.CreateButton(
-                chatPanel.transform,
-                "Seleccionar Archivos",
-                () =>
+            chatPanel.transform,
+            "Seleccionar Archivos",
+            () =>
+            {
+                // Abrir el explorador de archivos
+                var extensions = new[] {
+                    new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
+                };
+                var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivos", "", extensions, true);
+                if (paths.Length > 0)
                 {
-                    // Abrir el explorador de archivos
-                    var extensions = new[] {
-                        new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
-                    };
-                    var paths = StandaloneFileBrowser.OpenFilePanel("Seleccionar Archivos", "", extensions, true);
-                    if (paths.Length > 0)
-                    {
-                        HandleFileSelection(paths);
-                    }
-                },
-                new Vector2(200, 50)
-            );
-
+                    HandleFileSelection(paths);
+                }
+            },
+            new Vector2(200, 50)
+        );
 
         // Botón "Volver"
         UIUtilities.CreateButton(
@@ -356,7 +359,6 @@ public class PanelManager : MonoBehaviour
         chatPanel.SetActive(true);
     }
 
-
     private void HandleFileSelection(string[] selectedPaths)
     {
         // Verificamos que se haya seleccionado al menos un archivo
@@ -364,18 +366,24 @@ public class PanelManager : MonoBehaviour
         {
             // Agregar los archivos seleccionados a la lista actual
             currentSelectedFilePaths.AddRange(selectedPaths);
-
             // Actualizamos el panel de archivos seleccionados
             UpdateSelectedFilesPanel(currentSelectedFilePaths);
         }
+        else
+        {
+            Debug.LogError("No se seleccionaron archivos.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("No se seleccionaron archivos.", AlertType.Error);
+        }
     }
-
 
     public void AppendSystemMessage(string message, Color messageColor)
     {
         if (chatContent == null)
         {
             Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("No se ha inicializado el contenedor del chat.", AlertType.Error);
             return;
         }
         // Mensaje de sistema con word wrapping activado
@@ -387,6 +395,8 @@ public class PanelManager : MonoBehaviour
         if (chatContent == null)
         {
             Debug.LogError("No se ha inicializado el contenedor del chat (chatContent).");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("No se ha inicializado el contenedor del chat.", AlertType.Error);
             return;
         }
         UIUtilities.CreateChatMessage(chatContent, "Message", message, Color.black, 18, TMPro.TextAlignmentOptions.Left, true);
@@ -413,9 +423,6 @@ public class PanelManager : MonoBehaviour
         Debug.Log("Regresando al menú principal después de la eliminación de la sala.");
     }
 
-
-
-
     /////////////////////////////////////////////////////////
     // Manejo de Archivos Seleccionados
     /////////////////////////////////////////////////////////
@@ -440,39 +447,35 @@ public class PanelManager : MonoBehaviour
 
         // Añadir un VerticalLayoutGroup para organizar los archivos
         VerticalLayoutGroup layoutGroup = filesContainer.AddComponent<VerticalLayoutGroup>();
-        layoutGroup.childAlignment = TextAnchor.UpperLeft; // Alineación de los elementos
-        layoutGroup.spacing = 10; // Espaciado entre los elementos
-        layoutGroup.padding = new RectOffset(10, 10, 10, 10); // Ajuste de los márgenes
+        layoutGroup.childAlignment = TextAnchor.UpperLeft;
+        layoutGroup.spacing = 10;
+        layoutGroup.padding = new RectOffset(10, 10, 10, 10);
 
         // Añadir ScrollRect para que los elementos sean desplazables
         ScrollRect scrollRect = filesContainer.AddComponent<ScrollRect>();
-        scrollRect.horizontal = false; // Solo desplazamiento vertical
+        scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.content = filesContainer.GetComponent<RectTransform>();
 
         // Establecer tamaño del contenedor a 300px x 200px
         RectTransform rt = filesContainer.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(300f, 200f); // 300px x 200px
-        rt.anchorMin = new Vector2(0.5f, 0.5f); // Centrado
-        rt.anchorMax = new Vector2(0.5f, 0.5f); // Centrado
+        rt.sizeDelta = new Vector2(300f, 200f);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
 
-        // Crear contenedor de archivos directamente en el contenedor de archivos
+        // Crear contenedor de archivos para cada archivo
         foreach (string filePath in filePaths)
         {
-            // Crear contenedor de cada archivo
             GameObject fileContent = new GameObject("FileContent");
             fileContent.transform.SetParent(filesContainer.transform, false);
 
-            // Añadir un LayoutGroup horizontal para el texto y el botón "X"
             HorizontalLayoutGroup horizontalLayoutGroup = fileContent.AddComponent<HorizontalLayoutGroup>();
             horizontalLayoutGroup.childAlignment = TextAnchor.MiddleLeft;
-            horizontalLayoutGroup.spacing = 5; // Espaciado entre el texto y el botón "X"
+            horizontalLayoutGroup.spacing = 5;
 
-            // Crear el texto con el nombre del archivo
             var fileTextObj = UIUtilities.CreateText(fileContent.transform, System.IO.Path.GetFileName(filePath), 16, TMPro.TextAlignmentOptions.Left);
             fileTextObj.color = Color.black;
 
-            // Crear el botón "X" para eliminar el archivo
             GameObject deleteButton = new GameObject("DeleteButton");
             deleteButton.transform.SetParent(fileContent.transform, false);
 
@@ -482,7 +485,6 @@ public class PanelManager : MonoBehaviour
             Button btn = deleteButton.AddComponent<Button>();
             UIUtilities.CreateText(deleteButton.transform, "X", 14, TMPro.TextAlignmentOptions.Center).color = Color.red;
 
-            // Función para eliminar el archivo
             btn.onClick.AddListener(() => RemoveFile(filePath, filePaths));
         }
 
@@ -492,30 +494,27 @@ public class PanelManager : MonoBehaviour
             "Enviar Seleccionados",
             () =>
             {
-                // Obtener usuarios conectados
                 List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
                 if (connectedUsers != null && connectedUsers.Count > 0)
                 {
                     Vector3 screenPos = Camera.main.WorldToScreenPoint(panel.transform.position);
                     float desiredZ = screenPos.z;
 
-                    // Mostrar menú contextual con los usuarios conectados
                     ShowContextMenu(connectedUsers, (selectedUser) =>
                     {
-                        // Enviar los archivos seleccionados al usuario seleccionado
                         SendFilesToUser(selectedUser);
-                    }, screenPos, desiredZ, true); // Usamos el flag para mover el menú a la izquierda
+                    }, screenPos, desiredZ, true);
                 }
                 else
                 {
                     Debug.LogWarning("No hay usuarios conectados.");
+                    if (uiAlertManager != null)
+                        uiAlertManager.ShowAlert("No hay usuarios conectados.", AlertType.Warning);
                 }
             },
-            new Vector2(200, 50) // Tamaño del botón
+            new Vector2(200, 50)
         );
     }
-
-
 
     private void RemoveFile(string filePath, List<string> filePaths)
     {
@@ -525,6 +524,7 @@ public class PanelManager : MonoBehaviour
             UpdateSelectedFilesPanel(filePaths);
         }
     }
+
     public GameObject CreateSelectedFilesPanel()
     {
         GameObject panel;
@@ -550,29 +550,27 @@ public class PanelManager : MonoBehaviour
 
         panel.SetActive(true);
 
-        // Botón "Enviar Seleccionados" para abrir el menú contextual
         UIUtilities.CreateButton(
             selectedFilesPanel.transform,
             "Enviar Seleccionados",
             () =>
             {
-                // Obtener usuarios conectados
                 List<string> connectedUsers = PanelManager.Instance.GetConnectedUsernames();
                 if (connectedUsers != null && connectedUsers.Count > 0)
                 {
                     Vector3 screenPos = Camera.main.WorldToScreenPoint(selectedFilesPanel.transform.position);
                     float desiredZ = screenPos.z;
 
-                    // Mostrar menú contextual con los usuarios conectados
                     PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
                     {
-                        // Enviar los archivos seleccionados al usuario seleccionado
                         SendFilesToUser(selectedUser);
-                    }, screenPos, desiredZ, true); // Usamos el flag para mover el menú a la izquierda
+                    }, screenPos, desiredZ, true);
                 }
                 else
                 {
                     Debug.LogWarning("No hay usuarios conectados.");
+                    if (uiAlertManager != null)
+                        uiAlertManager.ShowAlert("No hay usuarios conectados.", AlertType.Warning);
                 }
             },
             new Vector2(200, 50)
@@ -581,15 +579,13 @@ public class PanelManager : MonoBehaviour
         return panel;
     }
 
-
     // Método para elegir a un destinatario y enviar los archivos
     private void SendFilesToUser(string targetUser)
     {
         foreach (string filePath in currentSelectedFilePaths)
         {
-            ChatClient.Instance.SendFileToUser(targetUser, filePath); // Delegamos el envío al ChatClient
+            ChatClient.Instance.SendFileToUser(targetUser, filePath);
         }
-       // Debug.Log($"Archivos enviados a {targetUser}");
     }
 
     /////////////////////////////////////////////////////////
@@ -601,43 +597,37 @@ public class PanelManager : MonoBehaviour
         if (contextMenuPanel == null)
         {
             Debug.LogError("contextMenuPanel no está asignado en PanelManager.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("El panel de menú contextual no está asignado.", AlertType.Error);
             return;
         }
 
-        // Limpiar el panel
         ClearPanel(contextMenuPanel);
 
         RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
 
-        // Si estamos enviando archivos, usamos las coordenadas fijas
         if (isFileSending)
         {
-            // Coordenadas fijas para el contexto del envío de archivos
             Vector3 fixedPosition = new Vector3(-25.11f, 0.3f, 104.4f);
-
             rt.localRotation = Quaternion.Euler(0, -45f, 0);
-
-            // Establecer posición con las coordenadas fijas
             rt.localPosition = fixedPosition;
-
-            // Establecer anclajes y pivotes en el centro
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
         }
         else
         {
-            // Si no estamos enviando archivos, usamos el cálculo de posición normal
             Canvas canvas = contextMenuPanel.GetComponentInParent<Canvas>();
             if (canvas == null)
             {
                 Debug.LogError("No se encontró un Canvas en los padres de contextMenuPanel.");
+                if (uiAlertManager != null)
+                    uiAlertManager.ShowAlert("No se encontró un Canvas en el menú contextual.", AlertType.Error);
                 return;
             }
 
             RectTransform canvasRect = canvas.GetComponent<RectTransform>();
 
-            // Convertir la posición de pantalla a local
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
                     canvasRect,
                     screenPosition,
@@ -646,17 +636,14 @@ public class PanelManager : MonoBehaviour
             {
                 rt.localPosition = new Vector3(localPoint.x, localPoint.y, desiredZ);
             }
-            // Establecer anclajes y pivotes en el centro
             rt.anchorMin = new Vector2(0.5f, 0.5f);
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
         }
 
-        // Verificar si hay usuarios antes de mostrar el menú
         if (users != null && users.Count > 0)
         {
             Debug.Log("Mostrando menú contextual con usuarios: " + string.Join(", ", users));
-
             foreach (string user in users)
             {
                 UIUtilities.CreateButton(
@@ -670,6 +657,8 @@ public class PanelManager : MonoBehaviour
         else
         {
             Debug.LogWarning("No hay usuarios para mostrar en el menú contextual.");
+            if (uiAlertManager != null)
+                uiAlertManager.ShowAlert("No hay usuarios conectados para mostrar.", AlertType.Warning);
         }
 
         contextMenuPanel.SetActive(true);
@@ -677,37 +666,31 @@ public class PanelManager : MonoBehaviour
 
     public void UpdateRightPanelWithFilePreview(FileChunk fileChunk, string filePath)
     {
-        // Verifica si el fragmento de archivo es de tipo imagen
         if (fileChunk.FileType.StartsWith("image"))
         {
-            // Cargar la imagen desde la ruta proporcionada
-            Texture2D texture = new Texture2D(2, 2); // Inicializa la textura
+            Texture2D texture = new Texture2D(2, 2);
             byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
-            texture.LoadImage(fileBytes);  // Carga la imagen en la textura
+            texture.LoadImage(fileBytes);
 
-            // Buscar el panel derecho donde se mostrará la vista previa
             GameObject rightPanel = PanelManager.Instance.rightPanel;
             if (rightPanel == null)
             {
                 Debug.LogError("No se encontró el panel derecho.");
+                if (uiAlertManager != null)
+                    uiAlertManager.ShowAlert("No se encontró el panel derecho.", AlertType.Error);
                 return;
             }
 
-            // Crear o actualizar el objeto de vista previa de la imagen
             GameObject previewObject = rightPanel.transform.Find("ImagePreview")?.gameObject;
             if (previewObject == null)
             {
-                // Crear el objeto si no existe
                 previewObject = new GameObject("ImagePreview");
                 previewObject.transform.SetParent(rightPanel.transform, false);
-
-                // Crear el componente RawImage para la vista previa
                 RawImage rawImage = previewObject.AddComponent<RawImage>();
                 RectTransform rt = rawImage.GetComponent<RectTransform>();
-                rt.sizeDelta = new Vector2(200f, 200f);  // Establece el tamaño de la vista previa
+                rt.sizeDelta = new Vector2(200f, 200f);
             }
 
-            // Asignar la textura cargada al RawImage para mostrar la imagen
             RawImage image = previewObject.GetComponent<RawImage>();
             image.texture = texture;
         }
@@ -716,9 +699,6 @@ public class PanelManager : MonoBehaviour
             Debug.Log("El fragmento de archivo recibido no es una imagen, no se puede mostrar vista previa.");
         }
     }
-
-
-
 
     public void HideContextMenu()
     {
@@ -733,7 +713,6 @@ public class PanelManager : MonoBehaviour
         return new List<string>(currentConnectedUsernames);
     }
 
-
     public void RemoveUserFromUI(string username)
     {
         Debug.Log($"Eliminando a {username} de la UI.");
@@ -744,39 +723,26 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-
-
     public void ShowConnectedUsers(string userList)
     {
         Debug.Log($"ShowConnectedUsers: Cadena recibida: '{userList}'");
-
-        // Buscamos el marcador "Usuarios Activos:"
         string marker = "Usuarios Activos:";
         int index = userList.IndexOf(marker);
 
         if (index >= 0)
         {
-            // Extraemos la parte que contiene los nombres
             string listPart = userList.Substring(index + marker.Length).Trim();
             Debug.Log("Parte de usuarios: '" + listPart + "'");
-
-            // Reiniciamos la lista interna
             currentConnectedUsernames.Clear();
 
-            // Si la cadena no está vacía, la separamos en base a comas (en este caso puede ser un solo usuario)
             if (!string.IsNullOrEmpty(listPart))
             {
-                // Se espera que listPart sea, por ejemplo: "asd (Active)" o "asd (Active), bob (Active)"
                 string[] entries = listPart.Split(',');
-
                 foreach (string entry in entries)
                 {
                     string trimmed = entry.Trim();
-                    // Suponemos que el nombre es la primera palabra antes del primer espacio
                     int spaceIndex = trimmed.IndexOf(' ');
                     string username = (spaceIndex > 0) ? trimmed.Substring(0, spaceIndex) : trimmed;
-
-                    // Agregamos solo si el nombre no está vacío y no tiene caracteres extraños
                     if (!string.IsNullOrEmpty(username) && !currentConnectedUsernames.Contains(username))
                     {
                         currentConnectedUsernames.Add(username);
@@ -790,10 +756,8 @@ public class PanelManager : MonoBehaviour
             currentConnectedUsernames.Clear();
         }
 
-        // Ver la lista final de usuarios
         Debug.Log("Usuarios conectados: " + string.Join(", ", currentConnectedUsernames));
     }
-
 
     /////////////////////////////////////////////////////////
     // Utility

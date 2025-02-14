@@ -65,6 +65,7 @@
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowserWindows.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMesh.cs" />
     <Compile Include="Assets\Scripts\Clients\Chat_Client.cs" />
+    <Compile Include="Assets\Scripts\Ui\UiUtilities.cs" />
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowser.cs" />
     <Compile Include="Assets\Scripts\Interaction\ObjectManipulator.cs" />
     <Compile Include="Assets\Scripts\Serialization\Vector3ToJsonConverter.cs" />
@@ -74,11 +75,11 @@
     <Compile Include="Assets\StandaloneFileBrowser\IStandaloneFileBrowser.cs" />
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowserLinux.cs" />
     <Compile Include="Assets\StandaloneFileBrowser\StandaloneFileBrowserMac.cs" />
+    <Compile Include="Assets\Scripts\Ui\UIAlertManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\SerializableMaterial.cs" />
     <Compile Include="Assets\Scripts\Serialization\ObjectManager.cs" />
     <Compile Include="Assets\Scripts\Ui\PanelManager.cs" />
     <Compile Include="Assets\Scripts\Serialization\ComplexObjectData.cs" />
-    <Compile Include="Assets\Scripts\Ui\Uiutilities.cs" />
     <Compile Include="Assets\Scripts\Clients\Login.cs" />
     <Compile Include="Assets\Scripts\Serialization\ColorToJsonConverter.cs" />
     <Compile Include="Assets\Scripts\Serialization\UniversalSerializer.cs" />

@@ -20,6 +20,7 @@ public class ChatClient : MonoBehaviour
 
     private void Awake()
     {
+        // Patrón Singleton para asegurar que solo exista una instancia de ChatClient
         if (Instance == null)
             Instance = this;
         else
@@ -28,7 +29,7 @@ public class ChatClient : MonoBehaviour
 
     private void Start()
     {
-        // Escuchar eventos de AuthManager cuando hay éxito/error de login
+        // Escuchar eventos de AuthManager para éxito/error de inicio de sesión
         AuthManager.Instance.OnLoginSuccess += HandleLoginSuccess;
         AuthManager.Instance.OnLoginError += HandleLoginError;
     }
@@ -43,6 +44,9 @@ public class ChatClient : MonoBehaviour
         }
     }
 
+    #region Manejo de Login
+
+    // Manejar inicio de sesión exitoso
     private void HandleLoginSuccess(string role)
     {
         mainThreadActions.Enqueue(() =>
@@ -53,6 +57,7 @@ public class ChatClient : MonoBehaviour
         });
     }
 
+    // Manejar error de inicio de sesión
     private void HandleLoginError(string error)
     {
         mainThreadActions.Enqueue(() =>
@@ -61,6 +66,11 @@ public class ChatClient : MonoBehaviour
         });
     }
 
+    #endregion
+
+    #region Manejo de Usuarios
+
+    // Manejar desconexión de usuario
     public void HandleUserDisconnected(string username)
     {
         mainThreadActions.Enqueue(() =>
@@ -70,6 +80,7 @@ public class ChatClient : MonoBehaviour
         });
     }
 
+    // Enviar estado de escritura al servidor
     public void SendTypingStatus()
     {
         if (!isTyping)
@@ -87,10 +98,11 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-  
+    #endregion
 
     #region Métodos para Enviar Comandos (Salas, Usuarios, Mensajes)
 
+    // Crear una nueva sala de chat
     public void CreateRoom(string roomName)
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -100,6 +112,7 @@ public class ChatClient : MonoBehaviour
             Debug.LogError("No se puede crear la sala. El WebSocket no está conectado.");
     }
 
+    // Eliminar una sala de chat existente
     public void DeleteRoom(string roomName)
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -107,6 +120,7 @@ public class ChatClient : MonoBehaviour
             ws.Send($"DELETE_ROOM {roomName}");
     }
 
+    // Eliminar un usuario del chat
     public void DeleteUser(string username)
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -114,6 +128,7 @@ public class ChatClient : MonoBehaviour
             ws.Send($"DELETE_USER {username}");
     }
 
+    // Ver la lista de salas de chat
     public void ViewRooms()
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -121,6 +136,7 @@ public class ChatClient : MonoBehaviour
             ws.Send("VIEW_ROOMS");
     }
 
+    // Ver la lista de usuarios conectados
     public void ViewConnectedUsers()
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -128,6 +144,7 @@ public class ChatClient : MonoBehaviour
             ws.Send("VIEW_CONNECTED");
     }
 
+    // Unirse a una sala de chat
     public void JoinRoom(string roomName)
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -137,6 +154,7 @@ public class ChatClient : MonoBehaviour
             Debug.LogError("No se puede unir a la sala. El WebSocket no está conectado.");
     }
 
+    // Enviar un mensaje a la sala de chat
     public void SendMessageToRoom(string message)
     {
         WebSocket ws = AuthManager.Instance.WS;
@@ -150,13 +168,12 @@ public class ChatClient : MonoBehaviour
             Debug.LogError("No se puede enviar el mensaje. El WebSocket no está conectado.");
         }
     }
+
     #endregion
 
     #region Envío de Objetos 3D
 
-    /// <summary>
-    /// Se llama cuando se hace clic en un objeto 3D.
-    /// </summary>
+    // Manejar evento de clic en objeto
     public void OnObjectClicked(GameObject obj)
     {
         if (obj == null)
@@ -173,8 +190,7 @@ public class ChatClient : MonoBehaviour
             return;
         }
 
-        // Enviar con el wrapper "OBJECT_COMPLEX" + payload
-        // O si prefieres, remove el wrapper y haz: JsonConvert.SerializeObject(data)
+        // Enviar con el envoltorio "OBJECT_COMPLEX" + payload
         string objectDataJson = UniversalSerializer.CreateUniversalMessage("OBJECT_COMPLEX", data);
         // Codificar a Base64
         string encodedJson = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(objectDataJson));
@@ -202,9 +218,7 @@ public class ChatClient : MonoBehaviour
         }, screenPos, desiredZ);
     }
 
-    /// <summary>
-    /// Reintenta mostrar el menú contextual tras un breve retraso, en caso de que no hubiera usuarios.
-    /// </summary>
+    // Reintentar evento de clic en objeto después de un retraso
     private IEnumerator RetryOnObjectClicked(GameObject obj)
     {
         yield return new WaitForSeconds(0.5f);
@@ -239,15 +253,13 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Envía el objeto serializado (encodedJson) al usuario destino.
-    /// </summary>
+    // Enviar el objeto a un usuario específico
     public void SendObjectToUser(string targetUser, string encodedJson)
     {
         WebSocket ws = AuthManager.Instance.WS;
         if (ws != null && ws.ReadyState == WebSocketState.Open)
         {
-            // Envía el mensaje con el comando SEND_OBJECT
+            // Enviar el mensaje con el comando SEND_OBJECT
             ws.Send($"SEND_OBJECT {targetUser} {encodedJson}");
             Debug.Log("Objeto enviado a " + targetUser);
         }
@@ -257,19 +269,17 @@ public class ChatClient : MonoBehaviour
         }
     }
 
+    #endregion
 
+    #region Envío de Archivos
 
-
-
-
-
-
+    // Enviar un archivo a un usuario específico
     public void SendFileToUser(string targetUser, string filePath)
     {
         byte[] fileBytes = File.ReadAllBytes(filePath);
         string base64Content = Convert.ToBase64String(fileBytes);
 
-        int chunkSize = 1024 * 256;  // 256KB por fragmento
+        int chunkSize = 1024 * 1024;  // 1MB por fragmento
         int totalChunks = (int)Math.Ceiling((double)base64Content.Length / chunkSize);
 
         for (int i = 0; i < totalChunks; i++)
@@ -284,7 +294,7 @@ public class ChatClient : MonoBehaviour
                 FileName = Path.GetFileName(filePath),
                 ContentBase64 = chunk,
                 TotalChunks = totalChunks,
-                CurrentChunk = i + 1  // Empezar desde 1
+                CurrentChunk = i + 1  // Comenzar desde 1
             };
 
             string fileChunkJson = JsonConvert.SerializeObject(fileChunk);
@@ -303,10 +313,7 @@ public class ChatClient : MonoBehaviour
         }
     }
 
-
-
-
-    // Método para obtener el tipo MIME de un archivo automáticamente
+    // Obtener el tipo MIME de un archivo basado en su extensión
     private string GetMimeType(string filePath)
     {
         string extension = System.IO.Path.GetExtension(filePath).ToLower();
@@ -320,32 +327,30 @@ public class ChatClient : MonoBehaviour
             case ".mp3": return "audio/mp3";
             case ".txt": return "text/plain";
             case ".zip": return "application/zip";
-            default: return "application/octet-stream";  // Tipo genérico si no se reconoce la extensión
+            default: return "application/octet-stream";  // Tipo genérico si la extensión no es reconocida
         }
     }
 
+    #endregion
+
+    #region Utilidades
+
+    // Escapar caracteres especiales en una cadena JSON
     private string EscapeJsonString(string input)
     {
-        // Reemplaza los caracteres especiales como comillas y saltos de línea
+        // Reemplazar caracteres especiales como comillas y saltos de línea
         string escapedString = input.Replace("\\", "\\\\")
                                     .Replace("\"", "\\\"")
                                     .Replace("\n", "\\n")
                                     .Replace("\r", "\\r");
 
-        // Elimina espacios en blanco innecesarios (solo si no son parte de la estructura)
+        // Eliminar espacios en blanco innecesarios (solo si no forman parte de la estructura)
         escapedString = string.Join(" ", escapedString.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 
         return escapedString;
     }
 
-
-
-
-
-
-    /// <summary>
-    /// Serializa un objeto 3D de Unity (Mesh, Material, Transform) a ComplexObjectData
-    /// </summary>
+    // Obtener datos de objeto complejo desde un GameObject
     private ComplexObjectData GetComplexObjectData(GameObject obj)
     {
         MeshFilter meshFilter = obj.GetComponent<MeshFilter>();
