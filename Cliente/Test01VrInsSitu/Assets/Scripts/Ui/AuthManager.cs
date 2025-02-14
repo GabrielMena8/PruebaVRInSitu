@@ -1,7 +1,9 @@
 using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Text;
 using UnityEngine;
 using WebSocketSharp;
@@ -30,34 +32,142 @@ public class AuthManager : MonoBehaviour
     private float reconnectDelay = 5f;
     private float reconnectStartTime;
 
-    // Método para conectar el WebSocket
-    private void ConnectWebSocket(string username, string password)
+
+
+    // Nueva propiedad para la URL del servidor (por defecto localhost)
+    public string serverURL = "ws://127.0.0.1:8080/chat";
+
+    /// <summary>
+    /// Método que se invoca desde el panel previo al login para configurar la IP del servidor.
+    /// Valida y formatea la IP ingresada, y la usa para establecer la URL del WebSocket.
+    /// </summary>
+    /// <summary>
+    /// Configura la IP del servidor a partir del input del usuario.
+    /// Valida que la IP sea válida para evitar errores de conexión.
+    /// Se espera que el usuario ingrese la IP en un formato sencillo, por ejemplo: "192.168.1.100"
+    /// Si no se incluyen puerto y ruta, se agregan por defecto.
+    /// </summary>
+    public void SetServerIP(string ipInput)
     {
-        ws = new WebSocket("ws://127.0.0.1:8080/chat");
-        ws.OnOpen += (sender, e) =>
+        if (string.IsNullOrEmpty(ipInput))
         {
-            Debug.Log("Conexión establecida. Enviando credenciales...");
-            ws.Send($"LOGIN {username} {password}");
-            // Notificar al usuario que la conexión fue exitosa
+            Debug.LogError("La IP ingresada es nula o vacía.");
             if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Conexión establecida.", AlertType.Success);
-        };
-        ws.OnMessage += OnMessageReceived;
-        ws.OnClose += (sender, e) =>
+                PanelManager.Instance.uiAlertManager.ShowAlert("Debe ingresar una IP válida.", AlertType.Error);
+            return;
+        }
+
+        // Asegurarse de que tenga el prefijo "ws://"
+        if (!ipInput.StartsWith("ws://"))
         {
-            Debug.Log("Conexión cerrada. Intentando reconectar...");
-            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Conexión cerrada. Intentando reconectar...", AlertType.Warning);
-            reconnectStartTime = Time.time;
-        };
-        ws.OnError += (sender, e) =>
+            ipInput = "ws://" + ipInput;
+        }
+
+        // Remover el prefijo para extraer solo la parte de la IP
+        string withoutPrefix = ipInput.Substring(5);
+        // Extraer la parte de la IP (sin puerto ni ruta)
+        string ipPart = withoutPrefix;
+        int colonIndex = ipPart.IndexOf(":");
+        if (colonIndex >= 0)
         {
-            Debug.LogError($"Error en WebSocket: {e.Message}");
+            ipPart = ipPart.Substring(0, colonIndex);
+        }
+
+        // Validar la IP usando IPAddress.TryParse
+        IPAddress ipAddress;
+        if (!IPAddress.TryParse(ipPart, out ipAddress))
+        {
+            Debug.LogError("La IP ingresada no es válida.");
             if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Error en WebSocket: " + e.Message, AlertType.Error);
-            reconnectStartTime = Time.time;
-        };
-        ws.ConnectAsync();
+                PanelManager.Instance.uiAlertManager.ShowAlert("La IP ingresada no es válida.", AlertType.Error);
+            return;
+        }
+
+        // Agregar el puerto y la ruta si no están incluidos
+        if (!ipInput.Contains(":8080"))
+        {
+            ipInput += ":8080";
+        }
+        if (!ipInput.EndsWith("/chat"))
+        {
+            ipInput += "/chat";
+        }
+
+        serverURL = ipInput;
+        Debug.Log("Servidor configurado en: " + serverURL);
+        if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
+            PanelManager.Instance.uiAlertManager.ShowAlert("Servidor configurado correctamente.", AlertType.Success);
+
+        // Continuar mostrando el panel de login
+        PanelManager.Instance.ShowLoginPanel();
+    }
+
+
+    // Método para conectar el WebSocket
+private void ConnectWebSocket(string username, string password)
+    {
+        try
+        {
+            ws = new WebSocket(serverURL);
+            ws.OnOpen += (sender, e) =>
+            {
+                Debug.Log("Conexión establecida. Enviando credenciales...");
+                ws.Send($"LOGIN {username} {password}");
+                // Notificar al usuario que la conexión fue exitosa
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Conexión establecida.", AlertType.Success);
+            };
+            ws.OnMessage += OnMessageReceived;
+            ws.OnClose += (sender, e) =>
+            {
+                Debug.Log("Conexión cerrada. Intentando reconectar...");
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Conexión cerrada. Intentando reconectar...", AlertType.Warning);
+                reconnectStartTime = Time.time;
+            };
+            ws.OnError += (sender, e) =>
+            {
+                Debug.LogError($"Error en WebSocket: {e.Message}");
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Error en WebSocket: " + e.Message, AlertType.Error);
+                reconnectStartTime = Time.time;
+            };
+            ws.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Excepción en ConnectWebSocket: " + ex.Message);
+            PanelManager.Instance?.uiAlertManager?.ShowAlert("Error al conectar: " + ex.Message, AlertType.Error);
+        }
+    }
+
+    // Método para reconectar el WebSocket
+    private void ConnectWebSocketForReconnect()
+    {
+        try
+        {
+            ws.OnOpen += (sender, e) =>
+            {
+                Debug.Log("Reconexión establecida.");
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Reconexión establecida.", AlertType.Success);
+            };
+            ws.OnMessage += OnMessageReceived;
+            ws.OnClose += (sender, e) =>
+            {
+                Debug.Log("Conexión cerrada nuevamente. Intentando reconectar...");
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Conexión cerrada nuevamente. Intentando reconectar...", AlertType.Warning);
+                reconnectStartTime = Time.time;
+            };
+            ws.OnError += (sender, e) =>
+            {
+                Debug.LogError($"Error en la reconexión: {e.Message}");
+                PanelManager.Instance?.uiAlertManager?.ShowAlert("Error en la reconexión: " + e.Message, AlertType.Error);
+                reconnectStartTime = Time.time;
+            };
+            ws.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Excepción en ConnectWebSocketForReconnect: " + ex.Message);
+            PanelManager.Instance?.uiAlertManager?.ShowAlert("Error en reconexión: " + ex.Message, AlertType.Error);
+        }
     }
 
     // Método para reconectar el WebSocket
@@ -68,33 +178,6 @@ public class AuthManager : MonoBehaviour
             PanelManager.Instance.uiAlertManager.ShowAlert("Intentando reconectar...", AlertType.Info);
         ws = new WebSocket("ws://127.0.0.1:8080/chat");
         ConnectWebSocketForReconnect();
-    }
-
-    // Método para conectar el WebSocket durante la reconexión
-    private void ConnectWebSocketForReconnect()
-    {
-        ws.OnOpen += (sender, e) =>
-        {
-            Debug.Log("Reconexión establecida.");
-            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Reconexión establecida.", AlertType.Success);
-        };
-        ws.OnMessage += OnMessageReceived;
-        ws.OnClose += (sender, e) =>
-        {
-            Debug.Log("Conexión cerrada nuevamente. Intentando reconectar...");
-            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Conexión cerrada nuevamente. Intentando reconectar...", AlertType.Warning);
-            reconnectStartTime = Time.time;
-        };
-        ws.OnError += (sender, e) =>
-        {
-            Debug.LogError($"Error en la reconexión: {e.Message}");
-            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Error en la reconexión: " + e.Message, AlertType.Error);
-            reconnectStartTime = Time.time;
-        };
-        ws.ConnectAsync();
     }
     #endregion
 
@@ -109,21 +192,38 @@ public class AuthManager : MonoBehaviour
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
             Debug.Log("Por favor, completa ambos campos.");
-            if (PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                PanelManager.Instance.uiAlertManager.ShowAlert("Por favor, completa ambos campos.", AlertType.Warning);
+            PanelManager.Instance?.uiAlertManager?.ShowAlert("Por favor, completa ambos campos.", AlertType.Warning);
             return;
         }
 
+        // Si el WebSocket es nulo o cerrado, intentar conectarse
         if (ws == null || ws.ReadyState == WebSocketState.Closed)
         {
             ConnectWebSocket(username, password);
         }
         else if (ws.ReadyState == WebSocketState.Open)
         {
-            Debug.Log("WebSocket ya está conectado. Enviando credenciales...");
-            ws.Send($"LOGIN {username} {password}");
+            // Agregar un pequeño retraso para asegurarse de que la conexión esté estable
+            StartCoroutine(DelayedSendLogin(username, password, 1f)); // Espera 1 segundo
         }
     }
+
+    private IEnumerator DelayedSendLogin(string username, string password, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        // Verifica nuevamente que el WebSocket esté abierto
+        if (ws != null && ws.ReadyState == WebSocketState.Open)
+        {
+            Debug.Log("Enviando credenciales después del retraso.");
+            ws.Send($"LOGIN {username} {password}");
+        }
+        else
+        {
+            Debug.LogError("El WebSocket no está abierto tras el retraso. No se pueden enviar las credenciales.");
+            PanelManager.Instance?.uiAlertManager?.ShowAlert("Error: No se puede enviar el login. Conexión perdida.", AlertType.Error);
+        }
+    }
+
 
     private void HandleLoginSuccess(string payload)
     {
@@ -174,15 +274,16 @@ public class AuthManager : MonoBehaviour
     // Método para manejar mensajes recibidos del WebSocket
     private void OnMessageReceived(object sender, MessageEventArgs e)
     {
-        Debug.Log("Mensaje recibido: " + e.Data);
-
-        mainThreadActions.Enqueue(() =>
+        try
         {
-            string data = e.Data;
-            bool handled = false;
-
-            var commandMap = new (string prefix, Action<string> handler)[]
+            Debug.Log("Mensaje recibido: " + e.Data);
+            mainThreadActions.Enqueue(() =>
             {
+                string data = e.Data;
+                bool handled = false;
+
+                var commandMap = new (string prefix, Action<string> handler)[]
+                {
                 ("LOGIN_SUCCESS",   HandleLoginSuccess),
                 ("LOGIN_ERROR",     HandleLoginError),
                 ("ROOMS_INFO:",     HandleRoomsInfo),
@@ -193,29 +294,32 @@ public class AuthManager : MonoBehaviour
                 ("FILE_DIRECT",     HandleFileDirect),
                 ("TYPING",          HandleTyping),
                 ("USER_DISCONNECTED",HandleUserDisconnected),
-            };
+                };
 
-            // Buscar el comando adecuado para manejar el mensaje recibido
-            foreach (var (prefix, action) in commandMap)
-            {
-                if (data.StartsWith(prefix))
+                foreach (var (prefix, action) in commandMap)
                 {
-                    string payload = data.Substring(prefix.Length).Trim();
-                    action(payload);
-                    handled = true;
-                    break;
+                    if (data.StartsWith(prefix))
+                    {
+                        string payload = data.Substring(prefix.Length).Trim();
+                        action(payload);
+                        handled = true;
+                        break;
+                    }
                 }
-            }
 
-            if (!handled)
-            {
-                Debug.Log("Mensaje no reconocido: " + e.Data);
-                // Opcional: podrías mostrar una alerta informativa
-                // if(PanelManager.Instance != null && PanelManager.Instance.uiAlertManager != null)
-                //     PanelManager.Instance.uiAlertManager.ShowAlert("Mensaje no reconocido.", AlertType.Info);
-            }
-        });
+                if (!handled)
+                {
+                    Debug.Log("Mensaje no reconocido: " + e.Data);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Error en OnMessageReceived: " + ex.Message);
+            // Aquí puedes optar por cerrar la conexión o notificar al usuario sin colapsar la aplicación.
+        }
     }
+
 
     // Métodos de manejo para cada tipo de mensaje:
     private void HandleRoomsInfo(string payload)

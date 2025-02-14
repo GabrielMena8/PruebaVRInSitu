@@ -18,12 +18,12 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject selectedFilesPanel;
 
     [Header("Referencias a la UI")]
-    public UIAlertManager uiAlertManager; // Asegúrate de asignar este componente en el Inspector
+    public UIAlertManager uiAlertManager; // Asigna este componente en el Inspector
 
     public List<string> currentConnectedUsernames = new List<string>();
     public List<string> currentSelectedFilePaths = new List<string>();
 
-    private string currentRole = "user";  // Rol actual: "user" o "admin"
+    private string currentRole = "user";  // "user" o "admin"
     private TextMeshProUGUI roomListText; // Texto para mostrar la lista de salas
     private Transform chatContent;
 
@@ -41,8 +41,7 @@ public class PanelManager : MonoBehaviour
 
     private void Start()
     {
-        ShowLoginPanel();
-        ConfigureLoginPanel();
+        ShowServerIPPanel();
 
         if (uiAlertManager != null)
         {
@@ -56,16 +55,39 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    /////////////////////////////////////////////////////////
-    // Panel de Inicio de Sesión
-    /////////////////////////////////////////////////////////
+    #region Panel de IP y Login
 
-    private void ShowLoginPanel()
+    public void ShowLoginPanel()
     {
+        // Asigna un color distinto al panel de login (por ejemplo, cyan)
+        SetPanelColor(loginPanel, Color.cyan);
+
         loginPanel.SetActive(true);
         frontPanel.SetActive(false);
         leftPanel.SetActive(false);
         rightPanel.SetActive(false);
+        ConfigureLoginPanel();
+    }
+
+    public void ShowServerIPPanel()
+    {
+        // Usa el loginPanel para ingresar la IP y le asigna un color, por ejemplo, un tono de naranja
+        SetPanelColor(loginPanel, new Color(1f, 0.65f, 0f, 1f)); // Naranja
+
+        ClearPanel(loginPanel);
+
+        UIUtilities.CreateTitle(loginPanel.transform, "Ingrese la IP del servidor", 24);
+
+        // InputField para la IP (ejemplo: "192.168.1.100")
+        TMP_InputField ipInput = UIUtilities.CreateInputField(loginPanel.transform, "192.168.1.100", false, new Vector2(300, 30));
+
+        // Botón para confirmar la IP
+        UIUtilities.CreateButton(loginPanel.transform, "Confirmar IP", () =>
+        {
+            AuthManager.Instance.SetServerIP(ipInput.text);
+        }, new Vector2(200, 50));
+
+        loginPanel.SetActive(true);
     }
 
     private void ConfigureLoginPanel()
@@ -80,9 +102,9 @@ public class PanelManager : MonoBehaviour
         loginPanel.SetActive(true);
     }
 
-    /////////////////////////////////////////////////////////
-    // Configuración General de Paneles
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Configuración de Paneles
 
     public void SetRole(string role)
     {
@@ -99,13 +121,15 @@ public class PanelManager : MonoBehaviour
         ConfigureRightPanel();
     }
 
-    /////////////////////////////////////////////////////////
-    // Panel Frontal (Menú Principal)
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Panel Frontal (Menú Principal)
 
     private void ConfigureFrontPanel()
     {
         ClearPanel(frontPanel);
+        // Asigna un color al panel frontal, por ejemplo, verde
+        SetPanelColor(frontPanel, Color.green);
 
         if (currentRole == "admin")
         {
@@ -206,13 +230,16 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    /////////////////////////////////////////////////////////
-    // Panel Izquierdo / Derecho
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Panel Izquierdo / Derecho
 
     private void ConfigureLeftPanel()
     {
         ClearPanel(leftPanel);
+        // Asignar un color distinto, por ejemplo, amarillo
+        SetPanelColor(leftPanel, Color.yellow);
+
         UIUtilities.CreateTitle(leftPanel.transform, "Cerrar Sesión", 24);
         UIUtilities.CreateButton(leftPanel.transform, "Cerrar Sesión", HandleLogout, new Vector2(200, 50));
         leftPanel.SetActive(true);
@@ -221,6 +248,9 @@ public class PanelManager : MonoBehaviour
     private void ConfigureRightPanel()
     {
         ClearPanel(rightPanel);
+        // Asignar un color distinto, por ejemplo, magenta
+        SetPanelColor(rightPanel, Color.magenta);
+
         if (currentRole == "admin")
         {
             UIUtilities.CreateTitle(rightPanel.transform, "Opciones de Admin", 24);
@@ -250,7 +280,7 @@ public class PanelManager : MonoBehaviour
         UIUtilities.CreateTitle(rightPanel.transform, "Objetos Recibidos", 24);
         roomListText = UIUtilities.CreateText(rightPanel.transform, "Cargando objetos...", 18);
         UIUtilities.CreateButton(rightPanel.transform, "Volver", ConfigureRightPanel, new Vector2(200, 50));
-        // Aquí puedes manejar la lógica para mostrar los objetos recibidos
+        // Lógica para mostrar los objetos recibidos
     }
 
     private void HandleLogout()
@@ -259,9 +289,9 @@ public class PanelManager : MonoBehaviour
         ShowLoginPanel();
     }
 
-    /////////////////////////////////////////////////////////
-    // Mostrar Listas de Salas y Usuarios
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Mostrar Listas y Chat
 
     public void ShowRoomList(string roomList)
     {
@@ -276,10 +306,6 @@ public class PanelManager : MonoBehaviour
         Debug.Log("Lista de salas mostrada correctamente.");
     }
 
-    /////////////////////////////////////////////////////////
-    // Chat y Mensajes
-    /////////////////////////////////////////////////////////
-
     public void ShowChatPanel(string roomName)
     {
         // Ocultar paneles no relevantes
@@ -288,24 +314,19 @@ public class PanelManager : MonoBehaviour
         leftPanel.SetActive(false);
         rightPanel.SetActive(false);
 
-        // Crear el panel de chat
         GameObject chatPanel = Instantiate(frontPanel, frontPanel.transform.parent);
         chatPanel.name = "ChatPanel";
         ClearPanel(chatPanel);
 
-        // Crear el título
         UIUtilities.CreateTitle(chatPanel.transform, "Chat - Sala: " + roomName, 24);
 
-        // Crear ScrollView con un layout vertical para el historial de mensajes
         Transform scrollContent = UIUtilities.CreateScrollViewWithVerticalLayout(
             parent: chatPanel.transform,
             scrollViewName: "ChatScrollView"
         );
 
-        // Guardamos ese contenedor en chatContent para poder agregar mensajes
         chatContent = scrollContent;
 
-        // Crear el InputField para mensajes
         TMP_InputField chatInput = UIUtilities.CreateInputField(chatPanel.transform, "Escribe tu mensaje...", false, new Vector2(400, 40));
         chatInput.onValueChanged.AddListener((string text) =>
         {
@@ -321,7 +342,6 @@ public class PanelManager : MonoBehaviour
         inputRect.offsetMin = Vector2.zero;
         inputRect.offsetMax = Vector2.zero;
 
-        // Botón "Enviar"
         UIUtilities.CreateButton(
             chatPanel.transform,
             "Enviar",
@@ -341,7 +361,6 @@ public class PanelManager : MonoBehaviour
             "Seleccionar Archivos",
             () =>
             {
-                // Abrir el explorador de archivos
                 var extensions = new[] {
                     new ExtensionFilter("Archivos", "txt", "pdf", "png", "jpg", "mp4", "mp3", "zip")
                 };
@@ -354,7 +373,6 @@ public class PanelManager : MonoBehaviour
             new Vector2(200, 50)
         );
 
-        // Botón "Volver"
         UIUtilities.CreateButton(
             chatPanel.transform,
             "Volver",
@@ -366,18 +384,14 @@ public class PanelManager : MonoBehaviour
             new Vector2(100, 40)
         );
 
-        // Mostrar el panel de chat
         chatPanel.SetActive(true);
     }
 
     private void HandleFileSelection(string[] selectedPaths)
     {
-        // Verificamos que se haya seleccionado al menos un archivo
         if (selectedPaths != null && selectedPaths.Length > 0)
         {
-            // Agregar los archivos seleccionados a la lista actual
             currentSelectedFilePaths.AddRange(selectedPaths);
-            // Actualizamos el panel de archivos seleccionados
             UpdateSelectedFilesPanel(currentSelectedFilePaths);
         }
         else
@@ -397,7 +411,6 @@ public class PanelManager : MonoBehaviour
                 uiAlertManager.ShowAlert("No se ha inicializado el contenedor del chat.", AlertType.Error);
             return;
         }
-        // Mensaje de sistema con word wrapping activado
         UIUtilities.CreateChatMessage(chatContent, "SystemMessage", message, messageColor, 18, TMPro.TextAlignmentOptions.Left, true);
     }
 
@@ -434,72 +447,49 @@ public class PanelManager : MonoBehaviour
         Debug.Log("Regresando al menú principal después de la eliminación de la sala.");
     }
 
-    /////////////////////////////////////////////////////////
-    // Manejo de Archivos Seleccionados
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Manejo de Archivos Seleccionados
 
     public void UpdateSelectedFilesPanel(List<string> filePaths)
     {
-        // Crear el panel de archivos seleccionados
         GameObject panel = CreateSelectedFilesPanel();
-
-        // Limpiar panel
         foreach (Transform child in panel.transform)
         {
             Destroy(child.gameObject);
         }
-
-        // Título del panel
         UIUtilities.CreateTitle(panel.transform, "Archivos Seleccionados", 24);
-
-        // Crear contenedor para los archivos seleccionados con VerticalLayoutGroup
         GameObject filesContainer = new GameObject("FilesContainer");
         filesContainer.transform.SetParent(panel.transform, false);
-
-        // Añadir un VerticalLayoutGroup para organizar los archivos
         VerticalLayoutGroup layoutGroup = filesContainer.AddComponent<VerticalLayoutGroup>();
         layoutGroup.childAlignment = TextAnchor.UpperLeft;
         layoutGroup.spacing = 10;
         layoutGroup.padding = new RectOffset(10, 10, 10, 10);
-
-        // Añadir ScrollRect para que los elementos sean desplazables
         ScrollRect scrollRect = filesContainer.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.content = filesContainer.GetComponent<RectTransform>();
-
-        // Establecer tamaño del contenedor a 300px x 200px
         RectTransform rt = filesContainer.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(300f, 200f);
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
-
-        // Crear contenedor de archivos para cada archivo
         foreach (string filePath in filePaths)
         {
             GameObject fileContent = new GameObject("FileContent");
             fileContent.transform.SetParent(filesContainer.transform, false);
-
             HorizontalLayoutGroup horizontalLayoutGroup = fileContent.AddComponent<HorizontalLayoutGroup>();
             horizontalLayoutGroup.childAlignment = TextAnchor.MiddleLeft;
             horizontalLayoutGroup.spacing = 5;
-
             var fileTextObj = UIUtilities.CreateText(fileContent.transform, System.IO.Path.GetFileName(filePath), 16, TMPro.TextAlignmentOptions.Left);
             fileTextObj.color = Color.black;
-
             GameObject deleteButton = new GameObject("DeleteButton");
             deleteButton.transform.SetParent(fileContent.transform, false);
-
             var buttonRect = deleteButton.AddComponent<RectTransform>();
             buttonRect.sizeDelta = new Vector2(30, 30);
-
             Button btn = deleteButton.AddComponent<Button>();
             UIUtilities.CreateText(deleteButton.transform, "X", 14, TMPro.TextAlignmentOptions.Center).color = Color.red;
-
             btn.onClick.AddListener(() => RemoveFile(filePath, filePaths));
         }
-
-        // Crear el botón "Enviar Seleccionados"
         UIUtilities.CreateButton(
             panel.transform,
             "Enviar Seleccionados",
@@ -510,7 +500,6 @@ public class PanelManager : MonoBehaviour
                 {
                     Vector3 screenPos = Camera.main.WorldToScreenPoint(panel.transform.position);
                     float desiredZ = screenPos.z;
-
                     ShowContextMenu(connectedUsers, (selectedUser) =>
                     {
                         SendFilesToUser(selectedUser);
@@ -549,18 +538,14 @@ public class PanelManager : MonoBehaviour
         {
             panel = selectedFilesPanel;
         }
-
         ClearPanel(panel);
-
         RectTransform rt = panel.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0.5f, 0.5f);
         rt.localPosition = new Vector3(19.83f, 0.2f, 95.7f);
         rt.localRotation = Quaternion.Euler(0, 45, 0);
-
         panel.SetActive(true);
-
         UIUtilities.CreateButton(
             selectedFilesPanel.transform,
             "Enviar Seleccionados",
@@ -571,7 +556,6 @@ public class PanelManager : MonoBehaviour
                 {
                     Vector3 screenPos = Camera.main.WorldToScreenPoint(selectedFilesPanel.transform.position);
                     float desiredZ = screenPos.z;
-
                     PanelManager.Instance.ShowContextMenu(connectedUsers, (selectedUser) =>
                     {
                         SendFilesToUser(selectedUser);
@@ -586,7 +570,6 @@ public class PanelManager : MonoBehaviour
             },
             new Vector2(200, 50)
         );
-
         return panel;
     }
 
@@ -599,9 +582,9 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    /////////////////////////////////////////////////////////
-    // Manejo de Usuarios Conectados / Context Menu
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Manejo de Usuarios Conectados / Context Menu
 
     public void ShowContextMenu(List<string> users, System.Action<string> onUserSelected, Vector2 screenPosition, float desiredZ, bool isFileSending = false)
     {
@@ -612,11 +595,8 @@ public class PanelManager : MonoBehaviour
                 uiAlertManager.ShowAlert("El panel de menú contextual no está asignado.", AlertType.Error);
             return;
         }
-
         ClearPanel(contextMenuPanel);
-
         RectTransform rt = contextMenuPanel.GetComponent<RectTransform>();
-
         if (isFileSending)
         {
             Vector3 fixedPosition = new Vector3(-25.11f, 0.3f, 104.4f);
@@ -636,9 +616,7 @@ public class PanelManager : MonoBehaviour
                     uiAlertManager.ShowAlert("No se encontró un Canvas en el menú contextual.", AlertType.Error);
                 return;
             }
-
             RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
                     canvasRect,
                     screenPosition,
@@ -651,7 +629,6 @@ public class PanelManager : MonoBehaviour
             rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
         }
-
         if (users != null && users.Count > 0)
         {
             Debug.Log("Mostrando menú contextual con usuarios: " + string.Join(", ", users));
@@ -671,7 +648,6 @@ public class PanelManager : MonoBehaviour
             if (uiAlertManager != null)
                 uiAlertManager.ShowAlert("No hay usuarios conectados para mostrar.", AlertType.Warning);
         }
-
         contextMenuPanel.SetActive(true);
     }
 
@@ -682,7 +658,6 @@ public class PanelManager : MonoBehaviour
             Texture2D texture = new Texture2D(2, 2);
             byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
             texture.LoadImage(fileBytes);
-
             GameObject rightPanel = PanelManager.Instance.rightPanel;
             if (rightPanel == null)
             {
@@ -691,7 +666,6 @@ public class PanelManager : MonoBehaviour
                     uiAlertManager.ShowAlert("No se encontró el panel derecho.", AlertType.Error);
                 return;
             }
-
             GameObject previewObject = rightPanel.transform.Find("ImagePreview")?.gameObject;
             if (previewObject == null)
             {
@@ -701,7 +675,6 @@ public class PanelManager : MonoBehaviour
                 RectTransform rt = rawImage.GetComponent<RectTransform>();
                 rt.sizeDelta = new Vector2(200f, 200f);
             }
-
             RawImage image = previewObject.GetComponent<RawImage>();
             image.texture = texture;
         }
@@ -739,13 +712,11 @@ public class PanelManager : MonoBehaviour
         Debug.Log($"ShowConnectedUsers: Cadena recibida: '{userList}'");
         string marker = "Usuarios Activos:";
         int index = userList.IndexOf(marker);
-
         if (index >= 0)
         {
             string listPart = userList.Substring(index + marker.Length).Trim();
             Debug.Log("Parte de usuarios: '" + listPart + "'");
             currentConnectedUsernames.Clear();
-
             if (!string.IsNullOrEmpty(listPart))
             {
                 string[] entries = listPart.Split(',');
@@ -766,13 +737,12 @@ public class PanelManager : MonoBehaviour
             Debug.LogWarning("ShowConnectedUsers: No se encontró el marcador 'Usuarios Activos:' en la cadena recibida.");
             currentConnectedUsernames.Clear();
         }
-
         Debug.Log("Usuarios conectados: " + string.Join(", ", currentConnectedUsernames));
     }
 
-    /////////////////////////////////////////////////////////
-    // Utility
-    /////////////////////////////////////////////////////////
+    #endregion
+
+    #region Utility
 
     private void ClearPanel(GameObject panel)
     {
@@ -781,4 +751,18 @@ public class PanelManager : MonoBehaviour
             Destroy(child.gameObject);
         }
     }
+
+    /// <summary>
+    /// Asigna un color de fondo al panel, si tiene un componente Image.
+    /// </summary>
+    private void SetPanelColor(GameObject panel, Color color)
+    {
+        Image img = panel.GetComponent<Image>();
+        if (img != null)
+        {
+            img.color = color;
+        }
+    }
+
+    #endregion
 }

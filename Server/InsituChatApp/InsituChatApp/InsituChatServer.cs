@@ -1,9 +1,35 @@
 ﻿using System;
+using System.Net;
 using WebSocketSharp;
 using WebSocketSharp.Server;
 
 class InsituChatServer
 {
+    // Método para obtener la IP local (IPv4) que no sea de loopback
+    static string GetLocalIPAddress()
+    {
+        string localIP = "127.0.0.1";
+        try
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (IPAddress ip in host.AddressList)
+            {
+                // Solo direcciones IPv4
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(ip))
+                {
+                    localIP = ip.ToString();
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error al obtener la IP local: " + ex.Message);
+        }
+        return localIP;
+    }
+
     static void Main(string[] args)
     {
         // REMINDER:
@@ -15,7 +41,7 @@ class InsituChatServer
         //
         // Puedes usar esta IP para que otros dispositivos se conecten al servidor.
         // Además, si deseas que el servidor escuche en todas las interfaces (modo "external"),
-        // se puede usar la dirección "0.0.0.0".
+        // se puede usar la dirección "0.0.0.0" en el binding, pero para mostrar la IP real usaremos GetLocalIPAddress().
 
         Console.WriteLine("Selecciona el modo de conexión:");
         Console.WriteLine("Escribe 'external' para usar 0.0.0.0 (escucha en todas las interfaces, permite conexiones externas)");
@@ -36,8 +62,15 @@ class InsituChatServer
         Console.WriteLine($"Servidor configurado en {url}/chat");
         Console.WriteLine("------------------------------------------------------");
         Console.WriteLine("Recordatorio: Para saber la IP de tu máquina, usa 'ipconfig' (Windows) o 'ifconfig'/'ip addr' (Linux/macOS).");
-        Console.WriteLine("Si usas 'external', el servidor escuchará en todas las interfaces y podrás usar la IP real de tu máquina para conectarte desde otros dispositivos.");
         Console.WriteLine("------------------------------------------------------");
+
+        // Si el modo es external, mostramos la IP real de la máquina para que otros equipos se conecten.
+        if (mode == "external")
+        {
+            string localIP = GetLocalIPAddress();
+            Console.WriteLine($"La IP de esta máquina es: {localIP}");
+            Console.WriteLine($"Para conectarte desde otra PC, usa: ws://{localIP}:8080/chat");
+        }
 
         bool running = true;
         Console.WriteLine("Comandos disponibles:");
@@ -58,7 +91,16 @@ class InsituChatServer
                     {
                         wssv.Start();
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("Servidor WebSocket iniciado.");
+                        // Si estamos en modo external, mostramos la IP real en el mensaje
+                        if (mode == "external")
+                        {
+                            string localIP = GetLocalIPAddress();
+                            Console.WriteLine($"Servidor iniciado en: ws://{localIP}:8080/chat");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Servidor iniciado en: {url}/chat");
+                        }
                         Console.ResetColor();
                     }
                     else
@@ -82,7 +124,6 @@ class InsituChatServer
                     break;
 
                 case "setip":
-                    // Cambiar el modo de conexión en tiempo de ejecución
                     if (wssv.IsListening)
                     {
                         wssv.Stop();
@@ -92,16 +133,26 @@ class InsituChatServer
                     if (newMode == "external")
                     {
                         ip = "0.0.0.0";
+                        mode = "external";
                     }
                     else
                     {
                         ip = "127.0.0.1";
+                        mode = "internal";
                     }
+
+
                     url = $"ws://{ip}:8080";
                     wssv = new WebSocketServer(url);
                     wssv.AddWebSocketService<ChatRoom>("/chat");
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.WriteLine($"Modo cambiado. Nuevo servidor configurado en {url}/chat");
+                    if (mode == "external")
+                    {
+                        string localIP = GetLocalIPAddress();
+                        Console.WriteLine($"La IP de esta máquina es: {localIP}");
+                        Console.WriteLine($"Para conectarte desde otra PC, usa: ws://{localIP}:8080/chat");
+                    }
                     Console.ResetColor();
                     break;
 
