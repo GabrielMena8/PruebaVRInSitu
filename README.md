@@ -104,6 +104,3 @@ El proyecto está compuesto por dos partes principales:
 
 ---
 
-## 📄 Licencia
-
-[MIT License] (o la que prefieras incluir aquí).
